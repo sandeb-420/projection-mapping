@@ -112,11 +112,19 @@ export function buildMapping(
   for (const [j, world] of worldByProj) {
     const py = Math.floor(j / projectorWidth);
     const px = j - py * projectorWidth;
+    let camera: Vec2 = [0, 0];
+    let viewId = grayViews[0]!.id;
+    for (const entry of inv) {
+      if ((entry.inv.count[j] ?? 0) < 1) continue;
+      camera = [entry.inv.camX[j]!, entry.inv.camY[j]!];
+      viewId = entry.view.id;
+      break;
+    }
     points.push({
       world,
       projector: [px, py],
-      camera: [0, 0],
-      viewId: grayViews[0]!.id,
+      camera,
+      viewId,
       objectId: 0,
     });
   }

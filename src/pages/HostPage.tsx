@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LOOKS, bakeLook, pixelsToPngDataUrl } from "../lib/looks/bakeLook";
+import { overlayLookOnScene } from "../lib/looks/overlayLookOnScene";
 import { lookFromPromptAsync } from "../lib/looks/promptLook";
 import type { LookId, LookSpec } from "../lib/looks/types";
 import { MODEL_CATALOG } from "../lib/models/catalog";
-import { remapWithNewObject, runSimulatedCalibration } from "../lib/sim/runCalibration";
 import { mappingStats, type Mapping } from "../lib/pipeline/mapping";
 import { CaptureOrchestrator } from "../lib/capture/orchestrator";
 import { finishLiveMapping } from "../lib/capture/liveMapping";
@@ -37,6 +37,7 @@ export function HostPage() {
   const [spec, setSpec] = useState<LookSpec | null>(null);
   const [mapping, setMapping] = useState<Mapping | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [testPreview, setTestPreview] = useState<string | null>(null);
   const [liveStatus, setLiveStatus] = useState(
     "Idle — plug in the projector, fullscreen its tab, then open the phone on the room.",
   );
@@ -52,7 +53,6 @@ export function HostPage() {
     surfaces: number;
     rms: number;
     originError: number;
-    remapped: boolean;
   } | null>(null);
 
   const sessionRef = useRef<ReturnType<typeof createSession> | null>(null);
@@ -100,43 +100,28 @@ export function HostPage() {
     sessionRef.current?.send({ type: "projector-settings", ...next });
   }
 
-  function publish(
-    next: Mapping,
-    baked: Uint8ClampedArray,
-    originError: number,
-    remapped: boolean,
-  ) {
-    const url = pixelsToPngDataUrl(baked, next.projectorWidth, next.projectorHeight);
+  function publish(next: Mapping, baked: Uint8ClampedArray, originError: number) {
     const s = mappingStats(next);
     setMapping(next);
-    setPreview(url);
+    sendLook(next, baked);
     setStats({
       points: s.points,
       surfaces: s.surfaces,
       rms: next.projector.rms,
       originError,
-      remapped,
     });
-    localStorage.setItem("lumen-look", url ?? "");
-    if (url) sessionRef.current?.send({ type: "look-frame", dataUrl: url });
   }
 
-  async function runSim(remapped = false, lookOverride?: LookId | LookSpec) {
-    setBusy(true);
-    setError(null);
-    setPoseSource("simulator");
-    try {
-      await new Promise((r) => setTimeout(r, 20));
-      const result = remapped
-        ? remapWithNewObject({ center: [-0.55, 0.18, 2.35], size: [0.35, 0.36, 0.35] })
-        : runSimulatedCalibration();
-      const baked = bakeLook(result.mapping, lookOverride ?? specRef.current ?? lookRef.current);
-      publish(result.mapping, baked, result.projectorOriginErrorM, remapped);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
+  function sendLook(next: Mapping, baked: Uint8ClampedArray) {
+    const throwUrl = pixelsToPngDataUrl(baked, next.projectorWidth, next.projectorHeight);
+    const overlay = overlayLookOnScene(next, baked);
+    const testUrl = overlay
+      ? pixelsToPngDataUrl(overlay.pixels, overlay.width, overlay.height)
+      : null;
+    setPreview(throwUrl);
+    setTestPreview(testUrl);
+    localStorage.setItem("lumen-look", throwUrl ?? "");
+    if (throwUrl) sessionRef.current?.send({ type: "look-frame", dataUrl: throwUrl });
   }
 
   function waitFrame(signal: AbortSignal): Promise<FrameMessage> {
@@ -212,7 +197,7 @@ export function HostPage() {
       const result = await finishLiveMapping(orch.getBundles(), proj);
       const baked = bakeLook(result.mapping, specRef.current ?? lookRef.current);
       setPoseSource(result.poseSource);
-      publish(result.mapping, baked, Number.NaN, false);
+      publish(result.mapping, baked, Number.NaN);
       setLiveStatus(`Mapped with ${result.poseSource} poses.`);
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
@@ -232,14 +217,11 @@ export function HostPage() {
     specRef.current = null;
     lookRef.current = next;
     if (!mapping) {
-      void runSim(false, next);
+      setError("Capture the room first. Looks are painted onto a phone photo here; only the pattern goes to the projector.");
       return;
     }
-    const baked = bakeLook(mapping, next);
-    const url = pixelsToPngDataUrl(baked, mapping.projectorWidth, mapping.projectorHeight);
-    setPreview(url);
-    localStorage.setItem("lumen-look", url ?? "");
-    if (url) sessionRef.current?.send({ type: "look-frame", dataUrl: url });
+    setError(null);
+    sendLook(mapping, bakeLook(mapping, next));
   }
 
   async function generateFromPrompt() {
@@ -250,14 +232,10 @@ export function HostPage() {
       setSpec(next);
       setLook("custom");
       if (!mapping) {
-        await runSim(false, next);
+        setError("Capture the room first. The projector never gets the phone photo.");
         return;
       }
-      const baked = bakeLook(mapping, next);
-      const url = pixelsToPngDataUrl(baked, mapping.projectorWidth, mapping.projectorHeight);
-      setPreview(url);
-      localStorage.setItem("lumen-look", url ?? "");
-      if (url) sessionRef.current?.send({ type: "look-frame", dataUrl: url });
+      sendLook(mapping, bakeLook(mapping, next));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -274,20 +252,13 @@ export function HostPage() {
       <p className="kicker">Lumen · auto projection mapping</p>
       <h1>Project onto real walls and objects. No manual grid warp.</h1>
       <p className="lede">
-        A real projector throws light onto the room. This app builds the warp automatically:
-        the projector flashes stripes, the iPhone photographs those stripes on the actual
-        surfaces, then looks are baked onto that map. HDMI is only the cable from the PC to
-        the projector — the surface is the wall, not a TV. Use <strong>Run virtual room</strong>
-        only to try the math before the projector is plugged in.
+        Take photos of the projected stripes on the room. This tab shows your photo with the
+        look painted on it — that is the test view. The other tab is the projector: it only
+        throws stripes, then the look. Never the photo. We do not rebuild a picture from the
+        projector&apos;s eye; we only learn which projector pixel hits which surface.
       </p>
 
       <div className="row" style={{ marginTop: "1.2rem" }}>
-        <button className="primary" disabled={busy} onClick={() => void runSim(false)}>
-          {busy ? "Working…" : "Run virtual room"}
-        </button>
-        <button disabled={busy} onClick={() => void runSim(true)}>
-          Remap after new object
-        </button>
         <a className="btn" href={projectorUrl} target="_blank" rel="noreferrer">
           Open projector window
         </a>
@@ -348,12 +319,27 @@ export function HostPage() {
         </div>
 
         <div className="card">
-          <h2>Projector look</h2>
-          {preview ? (
-            <img className="preview" src={preview} alt="Baked look on the virtual projector" />
+          <h2>What you see</h2>
+          <p className="muted">
+            Host = phone photo + look overlay. Projector tab = patterns only. A TV showing
+            that tab is just a flat version of the same framebuffer — not a reconstructed room.
+          </p>
+          {testPreview ? (
+            <>
+              <p className="muted" style={{ marginTop: "0.7rem" }}>Test · photo + look</p>
+              <img className="preview" src={testPreview} alt="Phone photo with look overlaid" />
+            </>
           ) : (
-            <p className="muted">Run the room, then pick a library look or type a prompt.</p>
+            <p className="muted" style={{ marginTop: "0.7rem" }}>
+              Capture from the phone first. Then this shows one of those photos with the look on it.
+            </p>
           )}
+          {preview ? (
+            <>
+              <p className="muted" style={{ marginTop: "0.7rem" }}>Projector throw · patterns only</p>
+              <img className="preview" src={preview} alt="Image the projector throws, not a photo of the room" />
+            </>
+          ) : null}
           <div className="row" style={{ marginTop: "0.7rem" }}>
             {LOOKS.map((item) => (
               <button
@@ -411,17 +397,12 @@ export function HostPage() {
                   ? `${stats.originError.toFixed(3)} m`
                   : "n/a (live capture)"}
               </li>
-              <li>
-                {stats.remapped
-                  ? "This pass included a newly placed object (full recapture)."
-                  : "First mapping of the empty-ish room."}
-              </li>
             </ul>
           ) : (
             <p className="muted">
-              Three virtual iPhone stops, or a live walk-around. Gray codes decode to projector
-              pixels; dual-view rays triangulate the projector. Depth models are for later live
-              watch, not this pass.
+              Walk the iPhone stations while stripes hit the wall. Gray codes tell us which
+              projector pixel landed where. We never rebuild a photo from the projector&apos;s
+              viewpoint.
             </p>
           )}
         </div>

@@ -94,9 +94,9 @@ export function ProjectorPage() {
           <p className="kicker">Projector · room {room}</p>
           <p className="muted">{label}</p>
           <p className="muted">
-            This tab is the image sent to the projector. Put it on the projector output
-            (the HDMI/DisplayPort cable into the unit), fullscreen it, and the stripes
-            land on the wall — not on a TV.
+            This tab is only what the projector throws: Gray-code stripes during capture,
+            then the look. Never the phone photo. On a TV it looks like a flat warped
+            painting. On a real projector those same pixels land on the 3D surfaces.
           </p>
           <div style={{ margin: "0.6rem 0" }}>
             <ProjectorSettingsForm value={settings} onChange={applySettings} />

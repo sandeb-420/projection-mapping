@@ -8,52 +8,42 @@ builds the map and projects a look onto the same surfaces.
 HDMI / DisplayPort is only the **cable from the PC to the projector**. The mapping
 target is never a TV.
 
-You can still **try the math with no projector** (virtual room). That is a simulator,
-not the product.
+## What you actually see
 
-## Real session (projector + room)
+We do **not** reconstruct a photograph from the projector's point of view. Phone
+photos are from the phone's angles. The map is only: *this projector pixel hit
+that 3D surface*.
+
+| Place | What is on it |
+| --- | --- |
+| **Host tab (test)** | One of your phone photos with the look painted on top. This is how you check mapping without staring at the wall. |
+| **Projector tab / real projector** | **Only** Gray-code stripes (during capture), then the look. Never the photo. |
+| **A TV showing the projector tab** | The same 2D framebuffer: stripes, then a flat warped painting. It will not look like the room, because a TV is a rectangle — the 3D wall is what makes the look line up. |
+
+## Run it
 
 ```bash
 npm install
-npm test
+npm test          # synthetic room is only here, to check the math
 npm run dev       # https://localhost:5173  (self-signed cert so the iPhone camera works)
 ```
 
 1. Plug the projector into the PC. Point it at the wall / objects. Set native
    resolution, throw-to-wall, and projected image height on the host.
 2. Open **Projector window** and fullscreen it on the **projector output**. That tab
-   is the image the unit throws into the room.
+   is only what the unit throws into the room (stripes, then the look).
 3. On the iPhone (same Wi‑Fi, HTTPS) open `/phone?room=XXXX`, allow camera,
-   **Enable motion**. Photograph the **projected light on the surfaces**, not a
-   screen.
+   **Enable motion**. Photograph the **projected light on the surfaces**.
 4. On the host click **Start live capture** and walk center → left → right →
    closer to objects. Hold still while stripes flash on the wall.
-5. Bake a library look or a one-shot prompt. The projector throws that look onto
-   the mapped surfaces. New object? Walk the stations again.
+5. On the host you should see the **photo + look overlay**. The projector keeps
+   throwing **only the look**. New object? Walk the stations again.
 
 Default projector resolution prior is 1280×720. Match whatever the unit actually is.
 
 Phone poses: the sidecar tries **DA3-SMALL / MoGe-2** when those packages are
 installed and `LUMEN_RUN_DA3=1` (or `LUMEN_RUN_MOGE=1`). Otherwise the app uses
 the walk-around layout, optionally yaw-adjusted from DeviceOrientation.
-
-## Test without a projector (simulator only)
-
-```bash
-npm install
-npm test
-npm run dev
-```
-
-1. Open the host page and click **Run virtual room**.
-2. **Open projector window** if you want to see the baked look. In a real setup
-   that same window is what the projector throws onto the wall.
-3. Pick a library look or type a prompt (**Generate look**).
-4. **Remap after new object** reruns capture with an extra box in the virtual room.
-
-The simulator raycasts a back wall, floor, and box, paints Gray codes as a phone
-would see them on those surfaces, triangulates, solves projector pose, and bakes
-a look.
 
 ## Sidecar (optional)
 
@@ -85,7 +75,7 @@ Vite proxies `/api` to that process.
 ## Pipeline
 
 ```
-iPhone walk-around (or virtual cameras)
+iPhone walk-around
         │
         ├─ scene frames → DA3-SMALL / MoGe-2  (pose + metric scale; station layout if sidecar is off)
         └─ Gray-code stack → camera→projector UV  (stripes as seen on the real surfaces)
@@ -131,7 +121,7 @@ Related classical work: [RoomAlive Toolkit](https://github.com/microsoft/RoomAli
 - `src/lib/pose` station layout, DeviceOrientation, DA3 sidecar
 - `src/lib/projector` native resolution / throw-to-wall as K prior
 - `src/lib/pipeline` multi-view mapping + object residual (watch unused)
-- `src/lib/sim` virtual room (no hardware)
+- `src/lib/sim` synthetic room used by `npm test` only
 - `src/lib/looks` bake a projector image (keywords + optional LLM)
 - `src/pages` host / phone / projector
 - `server` optional FastAPI sidecar

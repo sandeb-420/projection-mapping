@@ -16,6 +16,7 @@ describe("virtual projector room", () => {
     expect(result.mapping.points.length).toBeGreaterThan(40);
     expect(result.mapping.surfaces.length).toBeGreaterThan(0);
     expect(result.rms).toBeLessThan(8);
+    expect(result.mapping.points.some((p) => p.camera[0] !== 0 || p.camera[1] !== 0)).toBe(true);
     // Structured-light triangulation is metric but noisy; origin can drift.
     // Reprojection RMS is the mapping quality signal.
     expect(result.projectorOriginErrorM).toBeLessThan(3.5);
