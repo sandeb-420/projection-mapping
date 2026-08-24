@@ -1,8 +1,7 @@
 import type { Vec2, Vec3 } from "../math/vec";
 import type { CorrespondenceMap } from "../decode/structuredLight";
 import { invertCorrespondence } from "../decode/structuredLight";
-import type { Pose, ProjectorPoseSource } from "../calib/projectorPnp";
-import { ransacProjectorDlt, type ProjectorCalibration } from "../calib/projectorPnp";
+import type { Pose, ProjectorCalibration, ProjectorPoseSource } from "../calib/projectorPnp";
 import { solveProjectorPnpOpenCv } from "../calib/opencvPnp";
 import { originFromPose, triangulateTwoViews } from "../calib/triangulate";
 import { ransacPlanes, type Plane } from "../geometry/planes";
@@ -59,52 +58,24 @@ interface Triangulated {
 /**
  * Multi-view structured-light mapping.
  *
- * Phone poses come from DA3 / MoGe (or the simulator). Gray-code maps from
- * two or more stops share projector pixels; those pixels are triangulated
- * into world points; the projector is then solved with DLT/PnP. Single-view
- * Gray-code pixels are filled from depth after pose is known.
+ * Phone poses come from DA3 + MoGe. Gray-code maps from two or more stops
+ * share projector pixels; those pixels are triangulated into world points;
+ * OpenCV PnP solves projector pose. Single-view Gray-code pixels are filled
+ * from depth after pose is known.
  */
-export function buildMapping(
+export async function buildMapping(
   views: ViewCapture[],
   projectorWidth: number,
   projectorHeight: number,
-  projectorK?: Mat3,
-): Mapping {
-  const geo = triangulateSharedPixels(views, projectorWidth, projectorHeight);
-  const projector = ransacProjectorDlt(geo.samples3d, geo.samples2d, {
-    iterations: 60,
-    threshold: 3,
-    sample: 12,
-    K: projectorK,
-  });
-  return finishMapping(views, projectorWidth, projectorHeight, projector, geo);
-}
-
-/**
- * Same as buildMapping, then OpenCV solvePnPRansac + LM if the sidecar is up.
- * Falls back to the in-browser DLT pose when OpenCV is missing or fails.
- */
-export async function buildMappingAsync(
-  views: ViewCapture[],
-  projectorWidth: number,
-  projectorHeight: number,
-  projectorK?: Mat3,
+  projectorK: Mat3,
 ): Promise<Mapping> {
   const geo = triangulateSharedPixels(views, projectorWidth, projectorHeight);
-  const dlt = ransacProjectorDlt(geo.samples3d, geo.samples2d, {
-    iterations: 60,
-    threshold: 3,
-    sample: 12,
+  const projector = await solveProjectorPnpOpenCv({
     K: projectorK,
-  });
-  const cv = await solveProjectorPnpOpenCv({
-    K: projectorK ?? dlt.K,
     points3d: geo.samples3d,
     points2d: geo.samples2d,
-    R: dlt.pose.R,
-    t: dlt.pose.t,
   });
-  return finishMapping(views, projectorWidth, projectorHeight, cv ?? dlt, geo);
+  return finishMapping(views, projectorWidth, projectorHeight, projector, geo);
 }
 
 function triangulateSharedPixels(

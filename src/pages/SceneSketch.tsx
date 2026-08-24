@@ -8,7 +8,6 @@ export function SceneSketch(props: {
 }) {
   const { mapping, poseSource, projectorSource } = props;
   const sketch = fitSceneTopDown(mapping, 320, 180);
-  const assumed = poseSource === "station-layout";
 
   return (
     <div>
@@ -52,16 +51,8 @@ export function SceneSketch(props: {
         Top-down 3D: gold triangle is the recovered projector, cyan dots are phone
         stations, gray is mapped surfaces. Looks are warped in this frame, not by
         dragging a grid.
-        {assumed
-          ? " Phone poses are the assumed walk (center/left/right) until DA3/MoGe is on. Projector pose is still solved from the stripes."
-          : poseSource
-            ? ` Phone poses from ${poseSource}.`
-            : ""}
-        {projectorSource === "opencv-pnp"
-          ? " Projector pose from OpenCV PnP."
-          : projectorSource === "dlt"
-            ? " Projector pose from in-browser DLT."
-            : ""}
+        {poseSource ? ` Phone poses from ${poseSource}.` : ""}
+        {projectorSource === "opencv-pnp" ? " Projector pose from OpenCV PnP." : ""}
       </p>
     </div>
   );

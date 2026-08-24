@@ -35,7 +35,7 @@ export const MODEL_CATALOG = [
     id: "da-v2-small",
     name: "Depth Anything V2 Small",
     role: "fallback-webgpu",
-    why: "Browser ONNX via transformers.js / WebGPU when the sidecar is off.",
+    why: "Parked. Phone pose comes from the DA3 + MoGe sidecar, not a browser fallback.",
     links: ["https://huggingface.co/onnx-community/depth-anything-v2-small"],
   },
 ] as const;

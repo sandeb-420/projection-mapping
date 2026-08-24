@@ -1,12 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { bakeLook } from "./bakeLook";
 import { overlayLookOnScene } from "./overlayLookOnScene";
 import { createDemoRoom } from "../sim/room";
 import { runSimulatedCalibration } from "../sim/runCalibration";
+import { stubDa3MogeAndOpenCv } from "../test/stubSidecar";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("overlayLookOnScene", () => {
-  it("paints the look onto a phone photo, not a projector-eye reconstruction", () => {
-    const result = runSimulatedCalibration(createDemoRoom());
+  it("paints the look onto a phone photo, not a projector-eye reconstruction", async () => {
+    stubDa3MogeAndOpenCv([]);
+    const result = await runSimulatedCalibration(createDemoRoom());
     const view = result.mapping.views[0];
     expect(view).toBeDefined();
     expect(result.mapping.points.some((p) => p.camera[0] !== 0 || p.camera[1] !== 0)).toBe(true);

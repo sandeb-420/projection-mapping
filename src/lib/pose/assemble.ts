@@ -3,7 +3,7 @@ import { decodeGrayStack } from "../decode/structuredLight";
 import type { GrayPattern } from "../patterns/grayCode";
 import { buildGraySequence } from "../patterns/grayCode";
 import type { ViewCapture } from "../pipeline/mapping";
-import type { LabeledPose } from "./stationLayout";
+import type { LabeledPose } from "./estimate";
 
 export function assembleLiveViews(
   bundles: StationBundle[],

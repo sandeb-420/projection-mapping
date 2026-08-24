@@ -1,7 +1,7 @@
 """Phone pose from captured scene photos.
 
 DA3-SMALL (ByteDance) estimates multi-view K, R, t from the JPEGs.
-MoGe-2 (Microsoft) optionally rescales those poses to metric units.
+MoGe-2 (Microsoft) rescales those poses to metric units. Both are required.
 
 These are the same families of models used in visual geometry papers; we call
 the libraries rather than reimplementing them. Gray-code decode stays in the
@@ -217,7 +217,7 @@ def da3_median_depth(prediction: Any) -> float | None:
 
 
 def pose_views_from_request(views: list[Any]) -> tuple[list[dict[str, Any]] | None, str | None]:
-    """Returns (views, source) from scene JPEGs. source is da3 or da3+moge."""
+    """Returns (views, source) from scene JPEGs. source is always da3+moge."""
     global _last_error
     _last_error = None
     images: list[np.ndarray] = []
@@ -238,9 +238,14 @@ def pose_views_from_request(views: list[Any]) -> tuple[list[dict[str, Any]] | No
         ids.append(str(view.get("id") or f"view-{i}"))
         sizes.append((int(rgb.shape[1]), int(rgb.shape[0])))
     if len(images) < 1:
+        _last_error = _last_error or "no-jpegs"
         return None, None
 
     if os.environ.get("LUMEN_RUN_DA3") != "1":
+        _last_error = "Set LUMEN_RUN_DA3=1"
+        return None, None
+    if os.environ.get("LUMEN_RUN_MOGE") != "1":
+        _last_error = "Set LUMEN_RUN_MOGE=1 — metric scale is required"
         return None, None
 
     model = _load_da3()
@@ -261,11 +266,10 @@ def pose_views_from_request(views: list[Any]) -> tuple[list[dict[str, Any]] | No
         _last_error = f"da3-infer: {err}"
         return None, None
 
-    source = "da3"
-    if os.environ.get("LUMEN_RUN_MOGE") == "1" and len(images) > 0:
-        moge_med = moge_median_depth(images[0])
-        da3_med = da3_median_depth(prediction)
-        if moge_med and da3_med and da3_med > 1e-6:
-            posed = apply_metric_scale(posed, moge_med / da3_med)
-            source = "da3+moge"
-    return posed, source
+    moge_med = moge_median_depth(images[0])
+    da3_med = da3_median_depth(prediction)
+    if not moge_med or not da3_med or da3_med <= 1e-6:
+        _last_error = _last_error or "MoGe could not metric-scale DA3 poses"
+        return None, None
+    posed = apply_metric_scale(posed, moge_med / da3_med)
+    return posed, "da3+moge"

@@ -1,14 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { CaptureOrchestrator } from "./orchestrator";
 import { createDemoRoom } from "../sim/room";
 import { paintPattern, traceView } from "../sim/render";
 import { assembleLiveViews } from "../pose/assemble";
-import { stationLayoutPoses } from "../pose/stationLayout";
 import { buildMapping } from "../pipeline/mapping";
+import { stubDa3MogeAndOpenCv } from "../test/stubSidecar";
 
 function emptyPixels(w: number, h: number): Uint8ClampedArray {
   return new Uint8ClampedArray(w * h * 4);
 }
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("CaptureOrchestrator", () => {
   it("runs Gray frames then a scene photo, and stops early when coverage is enough", () => {
@@ -38,7 +42,7 @@ describe("CaptureOrchestrator", () => {
     expect(bundles[0]!.gray.length).toBeGreaterThan(4);
   });
 
-  it("feeds simulated phone frames through the live path into mapping", () => {
+  it("feeds simulated phone frames through the live path into mapping", async () => {
     const room = createDemoRoom();
     const orch = new CaptureOrchestrator(room.projector.width, room.projector.height);
     let pending = orch.start();
@@ -65,10 +69,9 @@ describe("CaptureOrchestrator", () => {
     }
     expect(orch.isDone()).toBe(true);
     expect(orch.getBundles().length).toBeGreaterThanOrEqual(2);
-    const phone = room.phones[0]!;
-    const poses = stationLayoutPoses(phone.width, phone.height, 62);
-    const views = assembleLiveViews(orch.getBundles(), poses, room.projector.width, room.projector.height);
-    const mapping = buildMapping(views, room.projector.width, room.projector.height, room.projector.K);
+    stubDa3MogeAndOpenCv(room.phones);
+    const views = assembleLiveViews(orch.getBundles(), room.phones, room.projector.width, room.projector.height);
+    const mapping = await buildMapping(views, room.projector.width, room.projector.height, room.projector.K);
     expect(mapping.points.length).toBeGreaterThan(20);
     expect(mapping.projector.rms).toBeLessThan(12);
   });

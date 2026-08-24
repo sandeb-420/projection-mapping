@@ -50,16 +50,23 @@ describe("solveProjectorPnpOpenCv", () => {
       };
     });
     const cal = await solveProjectorPnpOpenCv(sample);
-    expect(cal).not.toBeNull();
-    expect(cal!.source).toBe("opencv-pnp");
-    expect(cal!.rms).toBe(0.4);
-    expect(cal!.pose.t[2]).toBe(0.2);
+    expect(cal.source).toBe("opencv-pnp");
+    expect(cal.rms).toBe(0.4);
+    expect(cal.pose.t[2]).toBe(0.2);
   });
 
-  it("returns null when the sidecar is down", async () => {
+  it("throws when the sidecar is down", async () => {
     vi.stubGlobal("fetch", async () => {
       throw new Error("offline");
     });
-    expect(await solveProjectorPnpOpenCv(sample)).toBeNull();
+    await expect(solveProjectorPnpOpenCv(sample)).rejects.toThrow(/OpenCV PnP sidecar is not running/);
+  });
+
+  it("throws when the sidecar cannot solve", async () => {
+    vi.stubGlobal("fetch", async () => ({
+      ok: true,
+      json: async () => ({ ok: false, reason: "pnp-failed" }),
+    }));
+    await expect(solveProjectorPnpOpenCv(sample)).rejects.toThrow(/pnp-failed/);
   });
 });

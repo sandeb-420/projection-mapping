@@ -1,12 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDemoRoom } from "../sim/room";
 import { runSimulatedCalibration } from "../sim/runCalibration";
 import { fitSceneTopDown } from "./sceneSketch";
 import { originFromPose } from "./triangulate";
+import { stubDa3MogeAndOpenCv } from "../test/stubSidecar";
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("fitSceneTopDown", () => {
-  it("places the projector and phones at distinct recovered positions", () => {
-    const result = runSimulatedCalibration(createDemoRoom());
+  it("places the projector and phones at distinct recovered positions", async () => {
+    stubDa3MogeAndOpenCv([]);
+    const result = await runSimulatedCalibration(createDemoRoom());
     const sketch = fitSceneTopDown(result.mapping, 320, 180);
     expect(sketch.projector).not.toBeNull();
     expect(sketch.phones.length).toBeGreaterThanOrEqual(2);

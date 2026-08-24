@@ -80,11 +80,11 @@ npm run dev       # https://localhost:5173  (self-signed cert so the iPhone came
 
 Default projector resolution prior is 1280×720. Match whatever the unit actually is.
 
-Phone poses come from the **scene photos** via the sidecar:
+Phone poses come from the **scene photos** via the sidecar. Both are required:
 
 1. Install [DA3-SMALL](https://github.com/ByteDance-Seed/depth-anything-3) and set `LUMEN_RUN_DA3=1`.
-2. Optional: [MoGe-2 ViT-S](https://github.com/microsoft/MoGe) with `LUMEN_RUN_MOGE=1` to metric-scale those poses.
-3. If the sidecar is off or the packages are missing, the app **guesses** the walk (station layout). That is not a measured pose.
+2. Install [MoGe-2 ViT-S](https://github.com/microsoft/MoGe) and set `LUMEN_RUN_MOGE=1` to metric-scale those poses.
+3. If the sidecar is off or either package is missing, mapping fails. There is no guessed walk-around pose.
 
 Gray-code encode/decode is our implementation of the same algorithm as OpenCV `structured_light` / RoomAlive. We do **not** vendor those C#/Qt apps.
 
@@ -104,8 +104,8 @@ Vite proxies `/api` to that process.
 
 | POST | Purpose |
 | --- | --- |
-| `/pose` | **Calls DA3-SMALL** on scene JPEGs (`K,R,t` + depth). Optional MoGe-2 scales translations and depth. `{ok:false}` → browser station-layout fallback. |
-| `/pnp` | **OpenCV `solvePnPRansac` + LM** for projector pose from triangulated 3D ↔ projector pixels. Browser DLT is the fallback. |
+| `/pose` | **Calls DA3-SMALL** on scene JPEGs (`K,R,t` + depth). **MoGe-2** scales translations and depth. Both required; `{ok:false}` is a hard error. |
+| `/pnp` | **OpenCV `solvePnPRansac` + LM** for projector pose from triangulated 3D ↔ projector pixels. Required; no in-browser DLT. |
 | `/shader` | Optional one-shot LLM look (`OPENAI_API_KEY`). Merges onto the keyword compiler. Still baked once. |
 | `/depth` | Stub for a later ZipDepth / DepthART watch loop. |
 
@@ -125,14 +125,14 @@ Vite proxies `/api` to that process.
 ```
 iPhone walk-around (hold still; move only if coverage asks)
         │
-        ├─ scene frames → DA3-SMALL / MoGe-2  (pose + metric scale; station layout if sidecar is off)
+        ├─ scene frames → DA3-SMALL + MoGe-2  (pose + metric scale; required)
         └─ Gray-code stack → camera→projector UV  (snapped automatically while you hold)
                 │
                 ▼
      triangulate projector pixels seen from ≥2 phone poses
                 │
                 ▼
-     OpenCV PnP (sidecar) or DLT → projector K, R, t
+     OpenCV PnP (sidecar) → projector R, t
                 │
                 ▼
      densify: one-view Gray-code pixels + DA3/MoGe depth
@@ -157,7 +157,7 @@ Realtime budget is for the watch loop only, and that loop is still off.
 | [ZipDepth](https://zipdepth.github.io/) | Live depth (later) | 6.1M, TensorRT ~1ms-class on 30-series. Best Python sidecar candidate. |
 | [DA3-SMALL](https://github.com/ByteDance-Seed/depth-anything-3) | Calib pose | 80M Apache-2.0. Depth + pose from the walk-around. |
 | [MoGe-2 ViT-S](https://github.com/microsoft/MoGe) | Metric scale | Point map + normals + FOV from one photo. |
-| DA-V2 Small ONNX | Browser fallback | transformers.js WebGPU if the sidecar is off. |
+| DA-V2 Small ONNX | Not used | Parked. Pose comes from the DA3/MoGe sidecar, not a browser fallback. |
 
 Related classical work: [RoomAlive Toolkit](https://github.com/microsoft/RoomAliveToolkit)
 (Gray-code projector–camera), [SLStudio](https://github.com/jakobwilm/slstudio),
@@ -167,15 +167,15 @@ Related classical work: [RoomAlive Toolkit](https://github.com/microsoft/RoomAli
 
 - `src/lib/patterns` Gray-code encode
 - `src/lib/decode` structured-light decode
-- `src/lib/calib` DLT projector pose, OpenCV PnP client, triangulation
+- `src/lib/calib` OpenCV PnP client, triangulation
 - `src/lib/capture` walk-around stations + host orchestrator
-- `src/lib/pose` station layout, DeviceOrientation, DA3 sidecar
+- `src/lib/pose` DA3 + MoGe sidecar client
 - `src/lib/projector` native resolution / throw-to-wall as K prior
 - `src/lib/pipeline` multi-view mapping + object residual (watch unused)
 - `src/lib/sim` synthetic room used by `npm test` only
 - `src/lib/looks` bake a projector image (keywords + optional LLM)
 - `src/pages` host / phone / projector
-- `server` optional FastAPI sidecar
+- `server` FastAPI sidecar (DA3, MoGe, OpenCV PnP)
 
 ## Notes
 

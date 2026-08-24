@@ -1,8 +1,8 @@
-"""Sidecar: DA3-SMALL / MoGe-2 pose from scene photos, plus one-shot looks.
+"""Sidecar: DA3-SMALL + MoGe-2 pose from scene photos, OpenCV PnP, looks.
 
     cd server
     pip install -r requirements.txt
-    LUMEN_RUN_DA3=1 uvicorn app:app --host 127.0.0.1 --port 8787
+    LUMEN_RUN_DA3=1 LUMEN_RUN_MOGE=1 uvicorn app:app --host 127.0.0.1 --port 8787
 """
 
 from __future__ import annotations
@@ -64,7 +64,7 @@ def depth(_frame: Frame) -> dict[str, str]:
 
 @app.post("/pose")
 def pose(body: dict[str, Any]) -> dict[str, Any]:
-    """DA3-SMALL pose from scene JPEGs. MoGe-2 optionally metric-scales translations."""
+    """DA3-SMALL pose from scene JPEGs. MoGe-2 metric-scales translations."""
     views = body.get("views") if isinstance(body, dict) else None
     if not isinstance(views, list) or not views:
         return {"ok": False, "reason": "no-views"}
@@ -74,7 +74,7 @@ def pose(body: dict[str, Any]) -> dict[str, Any]:
     return {
         "ok": False,
         "reason": "no-pose-backend",
-        "hint": "pip install the DA3 package, set LUMEN_RUN_DA3=1, then restart uvicorn. Optional LUMEN_RUN_MOGE=1.",
+        "hint": "pip install DA3 and MoGe, set LUMEN_RUN_DA3=1 LUMEN_RUN_MOGE=1, then restart uvicorn.",
         "da3_installed": _module_present("depth_anything_3"),
         "moge_installed": _module_present("moge"),
         "error": last_error(),

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { kFromFov, lookAt, project, type Vec3 } from "../math/vec";
-import { calibrateProjectorKnownK } from "../calib/projectorPnp";
 import { originFromPose } from "../calib/triangulate";
 import { length, sub } from "../math/vec";
+import { solveProjectorPnpViaPython } from "../test/stubSidecar";
 
-describe("projector DLT", () => {
+describe("OpenCV projector PnP", () => {
   it("recovers projector origin from known 3D–2D pairs", () => {
     const width = 320;
     const height = 180;
@@ -26,9 +26,20 @@ describe("projector DLT", () => {
       }
     }
     expect(points3d.length).toBeGreaterThan(30);
-    const cal = calibrateProjectorKnownK(K, points3d, points2d);
-    const origin = originFromPose(cal.pose);
+    const result = solveProjectorPnpViaPython({
+      K: [...K],
+      points3d: points3d.map((p) => [p[0], p[1], p[2]]),
+      points2d: points2d.map((p) => [p[0], p[1]]),
+    });
+    expect(result.ok).toBe(true);
+    expect(result.source).toBe("opencv-pnp");
+    const t = result.t as number[];
+    const R = result.R as number[];
+    const origin = originFromPose({
+      R: [R[0]!, R[1]!, R[2]!, R[3]!, R[4]!, R[5]!, R[6]!, R[7]!, R[8]!],
+      t: [t[0]!, t[1]!, t[2]!],
+    });
     expect(length(sub(origin, eye))).toBeLessThan(0.3);
-    expect(cal.rms).toBeLessThan(2);
+    expect(result.rms).toBeLessThan(2);
   });
 });

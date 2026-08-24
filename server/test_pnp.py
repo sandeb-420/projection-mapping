@@ -31,7 +31,7 @@ class ProjectorPnpTest(unittest.TestCase):
         self.assertLess(result["rms"], 1.0)
         self.assertGreaterEqual(result["inliers"], 6)
 
-    def test_refines_from_dlt_guess(self) -> None:
+    def test_refines_from_initial_guess(self) -> None:
         k = np.array([[400.0, 0.0, 160.0], [0.0, 400.0, 90.0], [0.0, 0.0, 1.0]])
         r_true = np.eye(3)
         t_true = np.array([0.05, -0.1, 0.2])

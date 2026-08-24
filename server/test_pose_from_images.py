@@ -3,12 +3,14 @@ from __future__ import annotations
 import unittest
 from types import SimpleNamespace
 import base64
+import os
 
 import numpy as np
 
 from pose_from_images import (
     apply_metric_scale,
     depth_to_b64,
+    pose_views_from_request,
     rt_from_extrinsic,
     scale_intrinsics,
     views_from_da3_prediction,
@@ -104,6 +106,31 @@ class PoseFromImagesTest(unittest.TestCase):
         scaled = apply_metric_scale(views, 2.0)
         raw = np.frombuffer(base64.b64decode(scaled[0]["depthB64"]), dtype=np.float32)
         np.testing.assert_allclose(raw, [2.0, 4.0, 6.0])
+
+    def test_pose_requires_da3_and_moge_flags(self) -> None:
+        import cv2
+
+        rgb = np.zeros((8, 8, 3), dtype=np.uint8)
+        ok, buf = cv2.imencode(".jpg", rgb)
+        self.assertTrue(ok)
+        jpeg = "data:image/jpeg;base64," + base64.b64encode(buf.tobytes()).decode()
+        old_da3 = os.environ.pop("LUMEN_RUN_DA3", None)
+        old_moge = os.environ.pop("LUMEN_RUN_MOGE", None)
+        try:
+            views, source = pose_views_from_request([{"id": "center", "jpeg": jpeg}])
+            self.assertIsNone(views)
+            self.assertIsNone(source)
+            os.environ["LUMEN_RUN_DA3"] = "1"
+            views, source = pose_views_from_request([{"id": "center", "jpeg": jpeg}])
+            self.assertIsNone(views)
+            self.assertIsNone(source)
+        finally:
+            os.environ.pop("LUMEN_RUN_DA3", None)
+            os.environ.pop("LUMEN_RUN_MOGE", None)
+            if old_da3 is not None:
+                os.environ["LUMEN_RUN_DA3"] = old_da3
+            if old_moge is not None:
+                os.environ["LUMEN_RUN_MOGE"] = old_moge
 
 
 if __name__ == "__main__":

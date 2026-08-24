@@ -405,7 +405,7 @@ export function HostPage() {
                 <li className="stat">Surfaces · {stats.surfaces}</li>
                 <li className="stat">
                   Reprojection RMS · {stats.rms.toFixed(2)} px
-                  {mapping.projector.source === "opencv-pnp" ? " · OpenCV PnP" : " · DLT"}
+                  {mapping.projector.source === "opencv-pnp" ? " · OpenCV PnP" : ""}
                 </li>
                 <li className="stat">
                   Projector origin ·{" "}
@@ -418,8 +418,8 @@ export function HostPage() {
           ) : (
             <p className="muted">
               Walk at least two angles while Gray-code stripes hit the wall. Same projector
-              pixel seen from two phone poses triangulates a 3D point. Those points solve
-              projector pose (PnP). Depth models (DA3 / MoGe) measure phone pose and scale
+              pixel seen from two phone poses triangulates a 3D point. OpenCV PnP
+              solves projector pose. DA3 + MoGe measure phone pose and metric scale
               so the angle of each photo is known — that replaces dragging a grid.
             </p>
           )}
@@ -449,9 +449,9 @@ export function HostPage() {
         <div className="card">
           <h2>Models</h2>
           <p className="muted">
-            DA3 / MoGe run at capture for phone pose, metric scale, and depth used
-            to fill Gray-code holes. OpenCV PnP solves projector pose. Tiny depth
-            nets are only for a later &quot;new object&quot; watch loop — not for looks.
+            DA3 + MoGe are required at capture for phone pose, metric scale, and
+            depth used to fill Gray-code holes. OpenCV PnP solves projector pose.
+            Tiny depth nets are only for a later &quot;new object&quot; watch loop — not for looks.
           </p>
           <ul className="steps">
             {MODEL_CATALOG.map((m) => (
