@@ -37,7 +37,9 @@ export function HostPage() {
   const [spec, setSpec] = useState<LookSpec | null>(null);
   const [mapping, setMapping] = useState<Mapping | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const [liveStatus, setLiveStatus] = useState("Idle — connect a phone and the projector tab.");
+  const [liveStatus, setLiveStatus] = useState(
+    "Idle — plug in the projector, fullscreen its tab, then open the phone on the room.",
+  );
   const [poseSource, setPoseSource] = useState<string | null>(null);
   const [proj, setProj] = useState<ProjectorSettings>(() => loadProjectorSettings());
   const [peers, setPeers] = useState<Record<Role, boolean>>({
@@ -270,12 +272,13 @@ export function HostPage() {
   return (
     <div className="shell">
       <p className="kicker">Lumen · auto projection mapping</p>
-      <h1>Map a room with an iPhone. No projector required to test.</h1>
+      <h1>Project onto real walls and objects. No manual grid warp.</h1>
       <p className="lede">
-        Default path: a virtual projector and three simulated phone stations. Same Gray-code
-        capture, triangulation, surface fit, and look bake you will run on hardware. The iPhone is
-        handheld — walk the stations the app asks for. A new object means run that capture again,
-        not a live camera watch.
+        A real projector throws light onto the room. This app builds the warp automatically:
+        the projector flashes stripes, the iPhone photographs those stripes on the actual
+        surfaces, then looks are baked onto that map. HDMI is only the cable from the PC to
+        the projector — the surface is the wall, not a TV. Use <strong>Run virtual room</strong>
+        only to try the math before the projector is plugged in.
       </p>
 
       <div className="row" style={{ marginTop: "1.2rem" }}>
@@ -333,10 +336,11 @@ export function HostPage() {
         </div>
 
         <div className="card">
-          <h2>HDMI / projector K</h2>
+          <h2>Projector lens / resolution</h2>
           <p className="muted">
-            Fullscreen the projector tab on the second display. Resolution and throw become the
-            known-K prior for PnP. Effective FOV {fov.toFixed(1)}°.
+            Match the real projector: native resolution, throw distance to the wall, height of
+            the projected image on that wall. Those numbers are the known-K prior. Effective FOV{" "}
+            {fov.toFixed(1)}°.
           </p>
           <div style={{ marginTop: "0.6rem" }}>
             <ProjectorSettingsForm value={proj} onChange={updateProjector} />
@@ -424,10 +428,13 @@ export function HostPage() {
         <div className="card">
           <h2>How a real session works</h2>
           <ol className="steps">
-            <li>PC hosts this app. Fullscreen the projector tab on HDMI (or a TV while testing).</li>
-            <li>iPhone opens <code>/phone?room={room}</code> and walks center → left → right → detail.</li>
-            <li>Bake a library look or generate one from a prompt, then project it.</li>
-            <li>Put a new object in the room? Open the phone app and capture the stations again.</li>
+            <li>
+              Plug the projector into the PC (HDMI/DisplayPort). Point it at the wall or objects.
+              Fullscreen the projector tab on that output so the light hits the room.
+            </li>
+            <li>iPhone opens <code>/phone?room={room}</code> and photographs the projected light on those surfaces — center → left → right → detail.</li>
+            <li>Bake a library look or generate one from a prompt. The projector throws that look onto the mapped surfaces.</li>
+            <li>Put a new object in the room? Walk the stations again so it gets mapped too.</li>
           </ol>
         </div>
         <div className="card">

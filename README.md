@@ -1,36 +1,59 @@
 # Lumen — auto projection mapping
 
-Map a room with a handheld iPhone, recover the projector pose from structured light, then project looks onto the recovered surfaces.
+A real projector throws patterns and looks onto **real walls and objects**. This app
+replaces the usual manual grid warp: the projector flashes Gray-code stripes, a
+handheld iPhone photographs those stripes **on the surfaces**, then the software
+builds the map and projects a look onto the same surfaces.
 
-You do **not** need a projector to try this. The default path is a **virtual room + virtual projector + three simulated iPhone stations**.
+HDMI / DisplayPort is only the **cable from the PC to the projector**. The mapping
+target is never a TV.
 
-## Test without a projector
+You can still **try the math with no projector** (virtual room). That is a simulator,
+not the product.
+
+## Real session (projector + room)
 
 ```bash
 npm install
-npm test          # Gray-code decode, projector pose, virtual-room mapping, live-path mapping, remap-after-new-object
-npm run dev       # https://localhost:5173  (self-signed cert so a real iPhone camera can work later)
+npm test
+npm run dev       # https://localhost:5173  (self-signed cert so the iPhone camera works)
+```
+
+1. Plug the projector into the PC. Point it at the wall / objects. Set native
+   resolution, throw-to-wall, and projected image height on the host.
+2. Open **Projector window** and fullscreen it on the **projector output**. That tab
+   is the image the unit throws into the room.
+3. On the iPhone (same Wi‑Fi, HTTPS) open `/phone?room=XXXX`, allow camera,
+   **Enable motion**. Photograph the **projected light on the surfaces**, not a
+   screen.
+4. On the host click **Start live capture** and walk center → left → right →
+   closer to objects. Hold still while stripes flash on the wall.
+5. Bake a library look or a one-shot prompt. The projector throws that look onto
+   the mapped surfaces. New object? Walk the stations again.
+
+Default projector resolution prior is 1280×720. Match whatever the unit actually is.
+
+Phone poses: the sidecar tries **DA3-SMALL / MoGe-2** when those packages are
+installed and `LUMEN_RUN_DA3=1` (or `LUMEN_RUN_MOGE=1`). Otherwise the app uses
+the walk-around layout, optionally yaw-adjusted from DeviceOrientation.
+
+## Test without a projector (simulator only)
+
+```bash
+npm install
+npm test
+npm run dev
 ```
 
 1. Open the host page and click **Run virtual room**.
-2. Open **Projector window** — that tab *is* the projector. Later you drag it onto HDMI.
-3. Optional stand-in for a real throw: fullscreen the projector tab on a TV or second monitor and point a phone at it.
+2. **Open projector window** if you want to see the baked look. In a real setup
+   that same window is what the projector throws onto the wall.
+3. Pick a library look or type a prompt (**Generate look**).
+4. **Remap after new object** reruns capture with an extra box in the virtual room.
 
-The simulator raycasts a back wall, floor, and box, paints Gray codes as a phone would see them, decodes correspondences, triangulates dual-view projector pixels, solves projector pose, and bakes a look. **Remap after new object** runs that whole capture again with an extra box in the room.
-
-## Live capture (phone + projector tab)
-
-Same math as the simulator. The host drives Gray-code index over WebSocket / BroadcastChannel; the projector tab paints each stripe; the iPhone captures and uploads JPEGs.
-
-1. On the PC, set **HDMI / projector K** (resolution, FOV, optional throw + image height).
-2. **Open projector window**, drag it onto the HDMI/TV display, click **Fullscreen**.
-3. On the iPhone (HTTPS, same room code) open `/phone?room=XXXX`, allow camera, **Enable motion**.
-4. On the host click **Start live capture** and walk center → left → right → closer to objects.
-5. Bake a library look or a one-shot prompt. New object? Walk the stations again.
-
-A 640×360 projector resolution is enough for a first TV test; 1280×720 is the default K prior.
-
-Phone poses: the sidecar tries **DA3-SMALL / MoGe-2** when those packages are installed and `LUMEN_RUN_DA3=1` (or `LUMEN_RUN_MOGE=1`). Otherwise the app uses the nominal walk-around layout, optionally yaw-adjusted from DeviceOrientation.
+The simulator raycasts a back wall, floor, and box, paints Gray codes as a phone
+would see them on those surfaces, triangulates, solves projector pose, and bakes
+a look.
 
 ## Sidecar (optional)
 
@@ -48,13 +71,16 @@ Vite proxies `/api` to that process.
 | `/shader` | Optional one-shot LLM look (`OPENAI_API_KEY`). Merges onto the keyword compiler. Still baked once. |
 | `/depth` | Stub for a later ZipDepth / DepthART watch loop. |
 
-## Real hardware
+## Hardware
 
-- **PC** runs the host + projector window on the HDMI output. Fullscreen the `/projector` tab on that display.
-- **iPhone** opens `/phone` (not mounted on the projector). The UI asks you to walk: front, left, right, then closer to objects.
-- At each Gray-code station the projector flashes stripes; the phone holds still and captures the stack.
-- Looks: pick a **library look** or type a prompt to **generate a custom look once** from the mapping, then project it. Not realtime AI. If the sidecar has an API key, the prompt can also return WGSL that is stored on the spec; the raster bake still uses hue / mode / freq.
-- New object: open the phone app and **walk the stations again**. Always-on camera detection is deferred.
+- **Projector** is the light source. PC drives it as a video output (usually HDMI).
+  Fullscreen `/projector` on that output so stripes and looks land on the room.
+- **iPhone** opens `/phone` (not mounted on the projector). It photographs the
+  projected light on walls and objects. The UI asks you to walk: front, left,
+  right, then closer to objects.
+- Looks: pick a **library look** or type a prompt to **generate a custom look once**
+  from the mapping, then project it. Not realtime AI.
+- New object: **walk the stations again**. Always-on camera detection is deferred.
 
 ## Pipeline
 
@@ -62,19 +88,19 @@ Vite proxies `/api` to that process.
 iPhone walk-around (or virtual cameras)
         │
         ├─ scene frames → DA3-SMALL / MoGe-2  (pose + metric scale; station layout if sidecar is off)
-        └─ Gray-code stack → camera→projector UV
+        └─ Gray-code stack → camera→projector UV  (stripes as seen on the real surfaces)
                 │
                 ▼
      triangulate projector pixels seen from ≥2 phone poses
                 │
                 ▼
-     DLT / PnP → projector K (from HDMI resolution + throw), R, t
+     DLT / PnP → projector K (native resolution + throw to wall), R, t
                 │
                 ▼
      RANSAC planes + leftover object blobs
                 │
                 ▼
-     bake look (library or one-shot prompt) → projector window
+     bake look → projector throws it onto the mapped surfaces
                 │
                 ▼
      new object → walk the iPhone stations again (live watch later)
@@ -92,9 +118,9 @@ Realtime budget is for the watch loop only, and that loop is still off.
 | [MoGe-2 ViT-S](https://github.com/microsoft/MoGe) | Metric scale | Point map + normals + FOV from one photo. |
 | DA-V2 Small ONNX | Browser fallback | transformers.js WebGPU if the sidecar is off. |
 
-VGGT / FastVGGT are useful if you want a heavy multi-view reconstruct from a video orbit. Too big for the 25ms loop; fine as an offline calib option later.
-
-Related classical work: [RoomAlive Toolkit](https://github.com/microsoft/RoomAliveToolkit) (Gray-code projector–camera), [SLStudio](https://github.com/jakobwilm/slstudio), [ofxProCamToolkit](https://github.com/kylemcdonald/ofxProCamToolkit).
+Related classical work: [RoomAlive Toolkit](https://github.com/microsoft/RoomAliveToolkit)
+(Gray-code projector–camera), [SLStudio](https://github.com/jakobwilm/slstudio),
+[ofxProCamToolkit](https://github.com/kylemcdonald/ofxProCamToolkit).
 
 ## Layout
 
@@ -103,7 +129,7 @@ Related classical work: [RoomAlive Toolkit](https://github.com/microsoft/RoomAli
 - `src/lib/calib` DLT projector pose + triangulation
 - `src/lib/capture` walk-around stations + host orchestrator
 - `src/lib/pose` station layout, DeviceOrientation, DA3 sidecar
-- `src/lib/projector` HDMI resolution / throw as K prior
+- `src/lib/projector` native resolution / throw-to-wall as K prior
 - `src/lib/pipeline` multi-view mapping + object residual (watch unused)
 - `src/lib/sim` virtual room (no hardware)
 - `src/lib/looks` bake a projector image (keywords + optional LLM)

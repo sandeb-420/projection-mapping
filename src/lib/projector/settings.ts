@@ -4,9 +4,9 @@ export interface ProjectorSettings {
   width: number;
   height: number;
   fovY: number;
-  /** Throw distance in meters (lens to screen). Optional; with screenHeightM it overrides fovY. */
+  /** Throw distance in meters (lens to the wall). Optional; with screenHeightM it overrides fovY. */
   throwM: number | null;
-  /** Projected image height in meters. */
+  /** Height of the projected image on the wall, in meters. */
   screenHeightM: number | null;
 }
 
@@ -60,7 +60,7 @@ export function effectiveFovY(settings: ProjectorSettings): number {
   return settings.fovY;
 }
 
-/** Known-K prior for projector PnP. Resolution + throw (or FOV) of the HDMI output. */
+/** Known-K prior for projector PnP. Native resolution + throw (or FOV) of the projector. */
 export function projectorK(settings: ProjectorSettings): Mat3 {
   return kFromFov(settings.width, settings.height, effectiveFovY(settings));
 }

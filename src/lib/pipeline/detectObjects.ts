@@ -25,7 +25,7 @@ export interface DetectedObject {
 
 /**
  * Always-on depth/object watch is deferred until the recapture walk-around
- * works on a real phone + display. Keep this module out of the host UI.
+ * works on a real phone + projector. Keep this module out of the host UI.
  * DepthART / ZipDepth / TypeGPU belong here later, not in look generation.
  */
 export const LIVE_WATCH_ENABLED = false;

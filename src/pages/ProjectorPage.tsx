@@ -81,7 +81,7 @@ export function ProjectorPage() {
       if (!document.fullscreenElement) await root.requestFullscreen();
       else await document.exitFullscreen();
     } catch {
-      setLabel("Fullscreen blocked — use the browser menu on this display.");
+      setLabel("Fullscreen blocked — use the browser menu on the projector output.");
     }
   }
 
@@ -94,8 +94,9 @@ export function ProjectorPage() {
           <p className="kicker">Projector · room {room}</p>
           <p className="muted">{label}</p>
           <p className="muted">
-            Drag this window onto the HDMI display, then fullscreen. Gray codes fill the
-            framebuffer at the resolution below.
+            This tab is the image sent to the projector. Put it on the projector output
+            (the HDMI/DisplayPort cable into the unit), fullscreen it, and the stripes
+            land on the wall — not on a TV.
           </p>
           <div style={{ margin: "0.6rem 0" }}>
             <ProjectorSettingsForm value={settings} onChange={applySettings} />
