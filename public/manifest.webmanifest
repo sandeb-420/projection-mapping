@@ -1,0 +1,9 @@
+{
+  "name": "Lumen Projection Mapping",
+  "short_name": "Lumen",
+  "start_url": "/phone",
+  "display": "standalone",
+  "background_color": "#0b0d10",
+  "theme_color": "#0b0d10",
+  "orientation": "landscape"
+}
