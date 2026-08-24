@@ -48,9 +48,12 @@ export function sessionPlugin(): Plugin {
           if (msg.type === "join" && msg.room && msg.role) {
             client = { ws, role: msg.role, room: msg.room };
             clients.add(client);
+            const roles = rolesInRoom(clients, client.room);
+            sendJson(ws, { type: "peer-list", roles });
             broadcast(clients, client.room, {
               type: "peer-joined",
               role: client.role,
+              roles,
             }, ws);
             return;
           }
@@ -63,11 +66,20 @@ export function sessionPlugin(): Plugin {
           broadcast(clients, client.room, {
             type: "peer-left",
             role: client.role,
+            roles: rolesInRoom(clients, client.room),
           });
         });
       });
     },
   };
+}
+
+function rolesInRoom(clients: Set<Client>, room: string): Role[] {
+  return [...clients].filter((c) => c.room === room).map((c) => c.role);
+}
+
+function sendJson(ws: WebSocket, msg: Envelope): void {
+  if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
 }
 
 function broadcast(

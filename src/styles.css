@@ -102,7 +102,75 @@ h1 { font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 560; letter-spacing: -0
 .projector-root canvas, .projector-root img {
   width: 100vw;
   height: 100vh;
-  object-fit: contain;
+  object-fit: fill;
   background: #000;
+}
+.projector-root canvas.is-hidden {
+  display: none;
+}
+.projector-hud {
+  position: fixed;
+  left: 1rem;
+  bottom: 1rem;
+  z-index: 3;
+  background: rgba(10, 12, 14, 0.86);
+  border: 1px solid var(--line);
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  max-width: min(34rem, calc(100vw - 2rem));
+}
+:fullscreen .projector-hud,
+.projector-root:fullscreen .projector-hud {
+  display: none;
+}
+.ghost-hud {
+  position: fixed;
+  left: 0.5rem;
+  bottom: 0.5rem;
+  opacity: 0.4;
+  font-size: 0.75rem;
+  padding: 0.3rem 0.65rem;
+  z-index: 3;
+}
+:fullscreen .ghost-hud {
+  display: none;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.field input {
+  background: #0e1210;
+  color: inherit;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  font: inherit;
+  width: 6.5rem;
+}
+.peer {
+  margin-left: 0.75rem;
+  white-space: nowrap;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #6fd7c8;
+  display: inline-block;
+  margin-right: 0.3rem;
+}
+.dot.off { background: #3a4144; }
+.wgsl {
+  max-height: 8rem;
+  overflow: auto;
+  font-size: 0.75rem;
+  background: #07080a;
+  padding: 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
 }
 code { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.86em; }

@@ -24,6 +24,13 @@ export interface DetectedObject {
 }
 
 /**
+ * Always-on depth/object watch is deferred until the recapture walk-around
+ * works on a real phone + display. Keep this module out of the host UI.
+ * DepthART / ZipDepth / TypeGPU belong here later, not in look generation.
+ */
+export const LIVE_WATCH_ENABLED = false;
+
+/**
  * Compare a live depth frame to the calibrated mapping. Blobs that sit
  * well in front of existing surfaces are treated as newly placed objects.
  *
