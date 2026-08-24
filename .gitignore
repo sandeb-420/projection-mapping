@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.vite/
+coverage/
+*.engine
+*.trt
+*.onnx
+checkpoints/
+.python-version
+__pycache__/
+.pytest_cache/
+*.pyc
+.env
+.DS_Store
+server/.venv/
+*.log

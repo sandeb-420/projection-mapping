@@ -1,0 +1,176 @@
+:root {
+  color-scheme: dark;
+  --bg: #0b0d10;
+  --bg-2: #12161c;
+  --line: rgba(255, 255, 255, 0.08);
+  --ink: #e8ece7;
+  --muted: #8b948c;
+  --gel: #d7a24a;
+  --cyan: #6fd7c8;
+  --danger: #e07070;
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; min-height: 100%; }
+body {
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(215, 162, 74, 0.12), transparent 50%),
+    radial-gradient(900px 500px at -10% 110%, rgba(111, 215, 200, 0.1), transparent 45%),
+    var(--bg);
+}
+
+a { color: var(--cyan); }
+button, .btn {
+  font: inherit;
+  border: 1px solid var(--line);
+  background: #1a211c;
+  color: var(--ink);
+  padding: 0.65rem 1rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+button.primary {
+  background: var(--gel);
+  color: #1a1206;
+  border-color: transparent;
+  font-weight: 650;
+}
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.shell { max-width: 1120px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+.kicker { letter-spacing: 0.18em; text-transform: uppercase; font-size: 0.7rem; color: var(--gel); }
+h1 { font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 560; letter-spacing: -0.03em; margin: 0.3rem 0 0.6rem; }
+.lede { color: var(--muted); max-width: 46rem; line-height: 1.5; }
+
+.grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: 1.5rem; }
+.card {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 1rem 1.1rem;
+}
+.card h2 { margin: 0 0 0.4rem; font-size: 1rem; font-weight: 600; }
+.muted { color: var(--muted); font-size: 0.92rem; line-height: 1.45; }
+.row { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; }
+.stat { font-variant-numeric: tabular-nums; }
+.preview {
+  width: 100%;
+  border-radius: 12px;
+  background: #07080a;
+  border: 1px solid var(--line);
+  image-rendering: pixelated;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+}
+.steps { list-style: none; padding: 0; margin: 0.4rem 0 0; }
+.steps li { padding: 0.45rem 0; border-bottom: 1px solid var(--line); }
+.steps li:last-child { border-bottom: 0; }
+.phone-app {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+}
+.viewfinder {
+  flex: 1;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #000;
+  position: relative;
+}
+.viewfinder video, .viewfinder canvas, .viewfinder img {
+  width: 100%; height: 100%; object-fit: cover;
+}
+.overlay {
+  position: absolute; inset: auto 1rem 1rem;
+  background: rgba(10, 12, 14, 0.72);
+  backdrop-filter: blur(10px);
+  border-radius: 14px;
+  padding: 0.9rem;
+}
+.projector-root {
+  margin: 0;
+  background: #000;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+}
+.projector-root canvas, .projector-root img {
+  width: 100vw;
+  height: 100vh;
+  object-fit: fill;
+  background: #000;
+}
+.projector-root canvas.is-hidden {
+  display: none;
+}
+.projector-hud {
+  position: fixed;
+  left: 1rem;
+  bottom: 1rem;
+  z-index: 3;
+  background: rgba(10, 12, 14, 0.86);
+  border: 1px solid var(--line);
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  max-width: min(34rem, calc(100vw - 2rem));
+}
+:fullscreen .projector-hud,
+.projector-root:fullscreen .projector-hud {
+  display: none;
+}
+.ghost-hud {
+  position: fixed;
+  left: 0.5rem;
+  bottom: 0.5rem;
+  opacity: 0.4;
+  font-size: 0.75rem;
+  padding: 0.3rem 0.65rem;
+  z-index: 3;
+}
+:fullscreen .ghost-hud {
+  display: none;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.field input {
+  background: #0e1210;
+  color: inherit;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  font: inherit;
+  width: 6.5rem;
+}
+.peer {
+  margin-left: 0.75rem;
+  white-space: nowrap;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #6fd7c8;
+  display: inline-block;
+  margin-right: 0.3rem;
+}
+.dot.off { background: #3a4144; }
+.wgsl {
+  max-height: 8rem;
+  overflow: auto;
+  font-size: 0.75rem;
+  background: #07080a;
+  padding: 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+code { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 0.86em; }
