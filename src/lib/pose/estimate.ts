@@ -3,7 +3,7 @@ import { cameraFromRt, mat3Mul, type Mat3, type Vec3 } from "../math/vec";
 import { rotationFromDeviceOrientation, yawDelta } from "./deviceOrientation";
 import { stationLayoutPoses, type LabeledPose } from "./stationLayout";
 
-export type PoseSource = "da3" | "moge" | "station-layout";
+export type PoseSource = "da3" | "moge" | "da3+moge" | "station-layout";
 
 export interface PoseHint {
   id: string;
@@ -83,7 +83,10 @@ async function tryPoseSidecar(hints: PoseHint[]): Promise<ResolvedPose[] | null>
     if (!res.ok) return null;
     const body = (await res.json()) as SidecarBody;
     if (!body.ok || !body.views?.length) return null;
-    const source: PoseSource = body.source === "moge" ? "moge" : "da3";
+    const source: PoseSource =
+      body.source === "moge" ? "moge" :
+      body.source === "da3+moge" ? "da3+moge" :
+      "da3";
     return body.views.map((view, i) => {
       const R = asMat3(view.R);
       const t = asVec3(view.t);

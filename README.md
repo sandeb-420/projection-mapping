@@ -79,23 +79,31 @@ npm run dev       # https://localhost:5173  (self-signed cert so the iPhone came
 
 Default projector resolution prior is 1280×720. Match whatever the unit actually is.
 
-Phone poses: the sidecar tries **DA3-SMALL / MoGe-2** when those packages are
-installed and `LUMEN_RUN_DA3=1` (or `LUMEN_RUN_MOGE=1`). Otherwise the app uses
-the walk-around layout, optionally yaw-adjusted from DeviceOrientation.
+Phone poses come from the **scene photos** via the sidecar:
 
-## Sidecar (optional)
+1. Install [DA3-SMALL](https://github.com/ByteDance-Seed/depth-anything-3) and set `LUMEN_RUN_DA3=1`.
+2. Optional: [MoGe-2 ViT-S](https://github.com/microsoft/MoGe) with `LUMEN_RUN_MOGE=1` to metric-scale those poses.
+3. If the sidecar is off or the packages are missing, the app **guesses** the walk (station layout). That is not a measured pose.
+
+Gray-code encode/decode is our implementation of the same algorithm as OpenCV `structured_light` / RoomAlive. We do **not** vendor those C#/Qt apps.
+
+## Sidecar (DA3 / MoGe)
 
 ```bash
 cd server
 pip install -r requirements.txt
-uvicorn app:app --host 127.0.0.1 --port 8787
+# Optional, large:
+#   pip install torch
+#   pip install git+https://github.com/ByteDance-Seed/Depth-Anything-3.git
+#   pip install git+https://github.com/microsoft/MoGe.git
+LUMEN_RUN_DA3=1 LUMEN_RUN_MOGE=1 uvicorn app:app --host 127.0.0.1 --port 8787
 ```
 
 Vite proxies `/api` to that process.
 
 | POST | Purpose |
 | --- | --- |
-| `/pose` | DA3-SMALL / MoGe-2 from scene frames. Returns `{ok:false}` so the browser can fall back. |
+| `/pose` | **Calls DA3-SMALL** on scene JPEGs (`K,R,t`). Optional MoGe-2 scales translations. `{ok:false}` → browser station-layout fallback. |
 | `/shader` | Optional one-shot LLM look (`OPENAI_API_KEY`). Merges onto the keyword compiler. Still baked once. |
 | `/depth` | Stub for a later ZipDepth / DepthART watch loop. |
 
