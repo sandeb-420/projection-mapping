@@ -40,7 +40,7 @@ export function HostPage() {
   const [preview, setPreview] = useState<string | null>(null);
   const [testPreview, setTestPreview] = useState<string | null>(null);
   const [liveStatus, setLiveStatus] = useState(
-    "Idle — plug in the projector, fullscreen its tab, then open the phone on the room.",
+            "Idle — plug in the projector, fullscreen its tab, then open the phone. Capture starts when you hold still.",
   );
   const [poseSource, setPoseSource] = useState<string | null>(null);
   const [projectorSource, setProjectorSource] = useState<string | null>(null);
@@ -173,10 +173,10 @@ export function HostPage() {
       for (const cmd of cmds) {
         session.send(cmd);
         if (cmd.type === "station") {
-          setLiveStatus(`Station ${cmd.index + 1}/${cmd.total} · ${cmd.station.title}`);
+          setLiveStatus(`Stop ${cmd.index + 1} · ${cmd.station.title}`);
         } else if (cmd.type === "show-pattern") {
           setLiveStatus(
-            `Station ${orch.currentStationIndex() + 1}/${orch.stations.length} · pattern ${cmd.index + 1}/${cmd.total}`,
+            `Hold still · ${cmd.stationId} · pattern ${cmd.index + 1}/${cmd.total}`,
           );
         } else if (cmd.type === "calib-done") {
           setLiveStatus("Solving poses and mapping…");
@@ -431,9 +431,9 @@ export function HostPage() {
               Plug the projector into the PC (HDMI/DisplayPort). Point it at the wall or objects.
               Fullscreen the projector tab on that output so the light hits the room.
             </li>
-            <li>iPhone opens <code>/phone?room={room}</code> and photographs the projected light on those surfaces — center → left → right → detail.</li>
+            <li>iPhone opens <code>/phone?room={room}</code>. Hold still while stripes flash — pictures are taken automatically. Move only if the phone asks for another angle (because coverage still needs it).</li>
             <li>Bake a library look or generate one from a prompt. The projector throws that look onto the mapped surfaces.</li>
-            <li>Put a new object in the room? Walk the stations again so it gets mapped too.</li>
+            <li>Put a new object in the room? Capture again so it gets mapped too.</li>
           </ol>
         </div>
         <div className="card">

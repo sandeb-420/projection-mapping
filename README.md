@@ -71,11 +71,12 @@ npm run dev       # https://localhost:5173  (self-signed cert so the iPhone came
 2. Open **Projector window** and fullscreen it on the **projector output**. That tab
    is only what the unit throws into the room (stripes, then the look).
 3. On the iPhone (same Wi‑Fi, HTTPS) open `/phone?room=XXXX`, allow camera,
-   **Enable motion**. Photograph the **projected light on the surfaces**.
-4. On the host click **Start live capture** and walk center → left → right →
-   closer to objects. Hold still while stripes flash on the wall.
+   **Enable motion**. Point it at the **projected light on the surfaces**.
+4. On the host click **Start live capture**. Hold still — the system projects
+   each Gray-code pattern and snaps when the phone is steady. It only asks you
+   to move if decoded coverage or baseline still needs another pose.
 5. On the host you should see the **photo + look overlay**. The projector keeps
-   throwing **only the look**. New object? Walk the stations again.
+   throwing **only the look**. New object? Capture again.
 
 Default projector resolution prior is 1280×720. Match whatever the unit actually is.
 
@@ -117,15 +118,15 @@ Vite proxies `/api` to that process.
   right, then closer to objects.
 - Looks: pick a **library look** or type a prompt to **generate a custom look once**
   from the mapping, then project it. Not realtime AI.
-- New object: **walk the stations again**. Always-on camera detection is deferred.
+- New object: **capture again**. Live watch is later.
 
 ## Pipeline
 
 ```
-iPhone walk-around
+iPhone walk-around (hold still; move only if coverage asks)
         │
         ├─ scene frames → DA3-SMALL / MoGe-2  (pose + metric scale; station layout if sidecar is off)
-        └─ Gray-code stack → camera→projector UV  (stripes as seen on the real surfaces)
+        └─ Gray-code stack → camera→projector UV  (snapped automatically while you hold)
                 │
                 ▼
      triangulate projector pixels seen from ≥2 phone poses
@@ -143,7 +144,7 @@ iPhone walk-around
      bake look → projector throws it onto the mapped surfaces
                 │
                 ▼
-     new object → walk the iPhone stations again (live watch later)
+     new object → capture again (live watch later)
 ```
 
 ## Models (from recent public posts, not locked in)

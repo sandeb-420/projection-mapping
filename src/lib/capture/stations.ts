@@ -1,7 +1,7 @@
 /**
- * Guided iPhone walk-around. The phone is NOT mounted on the projector.
- * The app asks the user to stop at a few stations; Gray codes replay at
- * each stop so we get projector correspondences from multiple angles.
+ * Pose templates for guided capture. The orchestrator starts at `center`
+ * and only instantiates later templates if Gray-code coverage still needs
+ * another angle — not a mechanical left→right script.
  */
 export type StationPatternSet = "full-gray" | "scene-only";
 
@@ -19,8 +19,8 @@ export const CAPTURE_STATIONS: CaptureStation[] = [
     id: "center",
     title: "Front center",
     instruction:
-      "Stand where you can see the whole projected wall. Hold the iPhone landscape and fill the frame with the projection.",
-    hint: "This is the main calibration shot. Stay still while stripes flash.",
+      "Point the camera at the whole projected area and hold still. The system snaps each stripe for you.",
+    hint: "Stay still while patterns flash. You will only be asked to move if this view is not enough.",
     patterns: "full-gray",
     minHoldMs: 400,
   },

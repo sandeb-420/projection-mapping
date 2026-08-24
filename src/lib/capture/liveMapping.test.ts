@@ -18,16 +18,12 @@ describe("finishLiveMapping", () => {
     const orch = new CaptureOrchestrator(room.projector.width, room.projector.height);
     let pending = orch.start();
     const traces = room.phones.map((cam) => traceView(room, cam));
-    const phoneFor = (stationId: string) => {
-      const i = room.phones.findIndex((p) => p.id === stationId);
-      return traces[i === -1 ? 0 : i]!;
-    };
     let guard = 0;
     while (!orch.isDone() && guard++ < 800) {
       const cap = pending.find((c) => c.type === "capture-now");
       if (!cap || cap.type !== "capture-now") break;
       const show = pending.find((c) => c.type === "show-pattern");
-      const trace = phoneFor(cap.stationId);
+      const trace = traces[Math.min(orch.currentStationIndex(), traces.length - 1)]!;
       const pixels =
         cap.kind === "scene"
           ? paintPattern(trace, "scene")

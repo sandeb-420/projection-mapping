@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CAPTURE_STATIONS, type CaptureStation } from "../lib/capture/stations";
 import { jpegFromVideo } from "../lib/capture/pixels";
+import { waitUntilStill } from "../lib/capture/stillness";
 import { createSession, roomFromLocation } from "../session/client";
 import { isCalibCommand, type CalibCommand } from "../session/protocol";
 
@@ -11,7 +12,6 @@ export function PhonePage() {
   const orient = useRef<{ alpha?: number; beta?: number; gamma?: number }>({});
   const [station, setStation] = useState<CaptureStation>(CAPTURE_STATIONS[0]!);
   const [index, setIndex] = useState(0);
-  const [total, setTotal] = useState(CAPTURE_STATIONS.length);
   const [status, setStatus] = useState("Camera starts when you allow access.");
   const [armed, setArmed] = useState(false);
   const [room] = useState(() => roomFromLocation());
@@ -28,7 +28,7 @@ export function PhonePage() {
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
         }
-        setStatus("Hold landscape. Wait for the host to start live capture.");
+        setStatus("Hold landscape. Wait for the host to start. The phone snaps when you are still.");
       } catch {
         setStatus("Camera blocked — use HTTPS (the dev server uses a self-signed cert) and allow access.");
       }
@@ -68,10 +68,10 @@ export function PhonePage() {
         await ctor.requestPermission();
       }
       setArmed(true);
-      setStatus("Motion on. Stay still when stripes flash.");
+      setStatus("Motion on. Hold still — the system takes each picture.");
     } catch {
       setArmed(true);
-      setStatus("Motion permission skipped. Station layout will be used for pose.");
+      setStatus("Motion permission skipped. Hold still when patterns flash.");
     }
   }
 
@@ -79,7 +79,6 @@ export function PhonePage() {
     if (cmd.type === "station") {
       setStation(cmd.station);
       setIndex(cmd.index);
-      setTotal(cmd.total);
       setStatus(cmd.station.instruction);
       return;
     }
@@ -95,9 +94,15 @@ export function PhonePage() {
     const key = `${cmd.stationId}:${cmd.patternId}:${cmd.kind}`;
     if (lastCapture.current === key) return;
     lastCapture.current = key;
-    const hold = CAPTURE_STATIONS.find((s) => s.id === cmd.stationId)?.minHoldMs ?? 400;
-    setStatus(cmd.kind === "scene" ? "Scene photo…" : `Holding for stripe ${cmd.patternId}…`);
-    await sleep(hold);
+    setStatus(
+      cmd.kind === "scene"
+        ? "Hold still — taking the scene photo…"
+        : `Hold still — stripe ${cmd.patternId}`,
+    );
+    await waitUntilStill(() => orient.current, {
+      minMs: cmd.kind === "scene" ? 200 : 400,
+      timeoutMs: 8000,
+    });
     const video = videoRef.current;
     if (!video || video.videoWidth < 2) {
       setStatus("Camera is not ready — cannot capture this frame.");
@@ -124,7 +129,7 @@ export function PhonePage() {
 
   return (
     <div className="phone-app">
-      <p className="kicker">Station {index + 1} / {total} · room {room}</p>
+      <p className="kicker">Stop {index + 1} · room {room}</p>
       <h1 style={{ fontSize: "1.4rem" }}>{station.title}</h1>
       <div className="viewfinder">
         <video ref={videoRef} playsInline muted autoPlay />
@@ -133,7 +138,7 @@ export function PhonePage() {
           <p className="muted" style={{ margin: "0.35rem 0 0.7rem" }}>{station.hint}</p>
           <p className="muted">{status}</p>
           <p className="muted">
-            New object in the room? Restart and walk the stations again. Live watch comes later.
+            Pictures are taken automatically when you hold still. Move only when the overlay asks — that means coverage still needs another angle.
           </p>
           <div className="row">
             <button className="primary" onClick={() => void enableMotion()}>
@@ -153,8 +158,4 @@ export function PhonePage() {
       </div>
     </div>
   );
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
