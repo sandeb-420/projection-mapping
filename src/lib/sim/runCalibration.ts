@@ -44,10 +44,10 @@ export function captureGrayView(
 }
 
 /** Walk the three virtual iPhone stations and solve projector + surfaces. */
-export function runSimulatedCalibration(room?: VirtualRoom): SimResult {
+export async function runSimulatedCalibration(room?: VirtualRoom): Promise<SimResult> {
   const demo = room ?? createDemoRoom();
   const views = demo.phones.map((_, i) => captureGrayView(demo, i));
-  const mapping = buildMapping(
+  const mapping = await buildMapping(
     views,
     demo.projector.width,
     demo.projector.height,
@@ -65,7 +65,7 @@ export function runSimulatedCalibration(room?: VirtualRoom): SimResult {
 }
 
 /** New object = run the whole capture/mapping pass again, not a live watch. */
-export function remapWithNewObject(extraBox: { center: Vec3; size: Vec3 }): SimResult {
+export function remapWithNewObject(extraBox: { center: Vec3; size: Vec3 }): Promise<SimResult> {
   return runSimulatedCalibration(
     createDemoRoom({
       includeBox: true,

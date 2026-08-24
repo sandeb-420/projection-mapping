@@ -89,7 +89,7 @@ export interface RoomOptions {
 
 /**
  * A living-room stand-in: back wall, floor, optional sculpture box.
- * The "projector" is virtual — same math as a real unit on HDMI later.
+ * The projector here is virtual — same math as a real unit throwing onto a wall.
  */
 export function createDemoRoom(options: RoomOptions = {}): VirtualRoom {
   const projectorWidth = options.projectorWidth ?? 320;

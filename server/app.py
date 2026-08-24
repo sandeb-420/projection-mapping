@@ -1,9 +1,8 @@
-"""Optional sidecar for pose (DA3 / MoGe) and one-shot look compilation.
+"""Sidecar: DA3-SMALL + MoGe-2 pose from scene photos, OpenCV PnP, looks.
 
-The web app maps a virtual room without this process. Start it when you want
-DA3-SMALL / MoGe-2 poses or an LLM WGSL bake:
-
-    uvicorn app:app --host 127.0.0.1 --port 8787
+    cd server
+    pip install -r requirements.txt
+    LUMEN_RUN_DA3=1 LUMEN_RUN_MOGE=1 uvicorn app:app --host 127.0.0.1 --port 8787
 """
 
 from __future__ import annotations
@@ -18,6 +17,9 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+from pose_from_images import last_error, pose_views_from_request
+from pnp import solve_projector_pnp
 
 app = FastAPI(title="Lumen sidecar")
 app.add_middleware(
@@ -44,7 +46,11 @@ def health() -> dict[str, Any]:
         "status": "ok",
         "da3": _module_present("depth_anything_3"),
         "moge": _module_present("moge"),
+        "opencv": _module_present("cv2"),
         "llm": bool(os.environ.get("OPENAI_API_KEY")),
+        "da3Enabled": os.environ.get("LUMEN_RUN_DA3") == "1",
+        "mogeEnabled": os.environ.get("LUMEN_RUN_MOGE") == "1",
+        "lastError": last_error(),
     }
 
 
@@ -58,23 +64,42 @@ def depth(_frame: Frame) -> dict[str, str]:
 
 @app.post("/pose")
 def pose(body: dict[str, Any]) -> dict[str, Any]:
-    """DA3-SMALL / MoGe-2 when installed; otherwise the browser uses station layout."""
+    """DA3-SMALL pose from scene JPEGs. MoGe-2 metric-scales translations."""
     views = body.get("views") if isinstance(body, dict) else None
     if not isinstance(views, list) or not views:
         return {"ok": False, "reason": "no-views"}
-    da3 = _try_da3(views)
-    if da3 is not None:
-        return {"ok": True, "source": "da3", "views": da3}
-    moge = _try_moge(views)
-    if moge is not None:
-        return {"ok": True, "source": "moge", "views": moge}
+    posed, source = pose_views_from_request(views)
+    if posed and source:
+        return {"ok": True, "source": source, "views": posed}
     return {
         "ok": False,
         "reason": "no-pose-backend",
-        "hint": "Install DA3-SMALL or MoGe-2 and set LUMEN_RUN_DA3=1. The app falls back to station layout + DeviceOrientation.",
+        "hint": "pip install DA3 and MoGe, set LUMEN_RUN_DA3=1 LUMEN_RUN_MOGE=1, then restart uvicorn.",
         "da3_installed": _module_present("depth_anything_3"),
         "moge_installed": _module_present("moge"),
+        "error": last_error(),
     }
+
+
+@app.post("/pnp")
+def pnp(body: dict[str, Any]) -> dict[str, Any]:
+    """OpenCV solvePnPRansac + LM refine for projector pose."""
+    k = body.get("K") if isinstance(body, dict) else None
+    pts3 = body.get("points3d") if isinstance(body, dict) else None
+    pts2 = body.get("points2d") if isinstance(body, dict) else None
+    dist = body.get("dist") if isinstance(body, dict) else None
+    r_init = body.get("R") if isinstance(body, dict) else None
+    t_init = body.get("t") if isinstance(body, dict) else None
+    if not isinstance(k, list) or not isinstance(pts3, list) or not isinstance(pts2, list):
+        return {"ok": False, "reason": "bad-body"}
+    return solve_projector_pnp(
+        k,
+        pts3,
+        pts2,
+        dist if isinstance(dist, list) else None,
+        r_init if isinstance(r_init, list) else None,
+        t_init if isinstance(t_init, list) else None,
+    )
 
 
 @app.post("/shader")
@@ -93,26 +118,6 @@ def _module_present(name: str) -> bool:
         return True
     except Exception:
         return False
-
-
-def _try_da3(views: list[Any]) -> list[dict[str, Any]] | None:
-    if os.environ.get("LUMEN_RUN_DA3") != "1":
-        return None
-    if not _module_present("depth_anything_3"):
-        return None
-    # Real inference is opt-in so a missing checkpoint cannot hang the host.
-    # Wire DepthAnything3.from_pretrained here when a local DA3-SMALL is present.
-    _ = views
-    return None
-
-
-def _try_moge(views: list[Any]) -> list[dict[str, Any]] | None:
-    if os.environ.get("LUMEN_RUN_MOGE") != "1":
-        return None
-    if not _module_present("moge"):
-        return None
-    _ = views
-    return None
 
 
 def _keyword_look(prompt: str) -> dict[str, Any]:

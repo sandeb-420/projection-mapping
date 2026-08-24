@@ -3,11 +3,11 @@ import { decodeGrayStack } from "../decode/structuredLight";
 import type { GrayPattern } from "../patterns/grayCode";
 import { buildGraySequence } from "../patterns/grayCode";
 import type { ViewCapture } from "../pipeline/mapping";
-import type { ResolvedPose } from "./estimate";
+import type { LabeledPose } from "./estimate";
 
 export function assembleLiveViews(
   bundles: StationBundle[],
-  poses: ResolvedPose[] | ReturnType<typeof import("./stationLayout").stationLayoutPoses>,
+  poses: ReadonlyArray<LabeledPose & { depth?: Float32Array }>,
   projectorWidth: number,
   projectorHeight: number,
 ): ViewCapture[] {
@@ -42,6 +42,7 @@ export function assembleLiveViews(
       scene: (bundle.scene ?? sample).pixels,
       width: sample.width,
       height: sample.height,
+      depth: pose.depth,
     });
   }
   return views;

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LOOKS, bakeLook, pixelsToPngDataUrl } from "../lib/looks/bakeLook";
+import { overlayLookOnScene } from "../lib/looks/overlayLookOnScene";
 import { lookFromPromptAsync } from "../lib/looks/promptLook";
 import type { LookId, LookSpec } from "../lib/looks/types";
 import { MODEL_CATALOG } from "../lib/models/catalog";
-import { remapWithNewObject, runSimulatedCalibration } from "../lib/sim/runCalibration";
 import { mappingStats, type Mapping } from "../lib/pipeline/mapping";
 import { CaptureOrchestrator } from "../lib/capture/orchestrator";
 import { finishLiveMapping } from "../lib/capture/liveMapping";
@@ -27,6 +27,7 @@ import {
   type FrameMessage,
 } from "../session/protocol";
 import { ProjectorSettingsForm } from "./ProjectorSettingsForm";
+import { SceneSketch } from "./SceneSketch";
 
 export function HostPage() {
   const room = useMemo(() => getOrCreateRoomCode(), []);
@@ -37,8 +38,12 @@ export function HostPage() {
   const [spec, setSpec] = useState<LookSpec | null>(null);
   const [mapping, setMapping] = useState<Mapping | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const [liveStatus, setLiveStatus] = useState("Idle — connect a phone and the projector tab.");
+  const [testPreview, setTestPreview] = useState<string | null>(null);
+  const [liveStatus, setLiveStatus] = useState(
+            "Idle — plug in the projector, fullscreen its tab, then open the phone. Capture starts when you hold still.",
+  );
   const [poseSource, setPoseSource] = useState<string | null>(null);
+  const [projectorSource, setProjectorSource] = useState<string | null>(null);
   const [proj, setProj] = useState<ProjectorSettings>(() => loadProjectorSettings());
   const [peers, setPeers] = useState<Record<Role, boolean>>({
     host: true,
@@ -50,7 +55,6 @@ export function HostPage() {
     surfaces: number;
     rms: number;
     originError: number;
-    remapped: boolean;
   } | null>(null);
 
   const sessionRef = useRef<ReturnType<typeof createSession> | null>(null);
@@ -98,43 +102,28 @@ export function HostPage() {
     sessionRef.current?.send({ type: "projector-settings", ...next });
   }
 
-  function publish(
-    next: Mapping,
-    baked: Uint8ClampedArray,
-    originError: number,
-    remapped: boolean,
-  ) {
-    const url = pixelsToPngDataUrl(baked, next.projectorWidth, next.projectorHeight);
+  function publish(next: Mapping, baked: Uint8ClampedArray, originError: number) {
     const s = mappingStats(next);
     setMapping(next);
-    setPreview(url);
+    sendLook(next, baked);
     setStats({
       points: s.points,
       surfaces: s.surfaces,
       rms: next.projector.rms,
       originError,
-      remapped,
     });
-    localStorage.setItem("lumen-look", url ?? "");
-    if (url) sessionRef.current?.send({ type: "look-frame", dataUrl: url });
   }
 
-  async function runSim(remapped = false, lookOverride?: LookId | LookSpec) {
-    setBusy(true);
-    setError(null);
-    setPoseSource("simulator");
-    try {
-      await new Promise((r) => setTimeout(r, 20));
-      const result = remapped
-        ? remapWithNewObject({ center: [-0.55, 0.18, 2.35], size: [0.35, 0.36, 0.35] })
-        : runSimulatedCalibration();
-      const baked = bakeLook(result.mapping, lookOverride ?? specRef.current ?? lookRef.current);
-      publish(result.mapping, baked, result.projectorOriginErrorM, remapped);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
+  function sendLook(next: Mapping, baked: Uint8ClampedArray) {
+    const throwUrl = pixelsToPngDataUrl(baked, next.projectorWidth, next.projectorHeight);
+    const overlay = overlayLookOnScene(next, baked);
+    const testUrl = overlay
+      ? pixelsToPngDataUrl(overlay.pixels, overlay.width, overlay.height)
+      : null;
+    setPreview(throwUrl);
+    setTestPreview(testUrl);
+    localStorage.setItem("lumen-look", throwUrl ?? "");
+    if (throwUrl) sessionRef.current?.send({ type: "look-frame", dataUrl: throwUrl });
   }
 
   function waitFrame(signal: AbortSignal): Promise<FrameMessage> {
@@ -184,10 +173,10 @@ export function HostPage() {
       for (const cmd of cmds) {
         session.send(cmd);
         if (cmd.type === "station") {
-          setLiveStatus(`Station ${cmd.index + 1}/${cmd.total} · ${cmd.station.title}`);
+          setLiveStatus(`Stop ${cmd.index + 1} · ${cmd.station.title}`);
         } else if (cmd.type === "show-pattern") {
           setLiveStatus(
-            `Station ${orch.currentStationIndex() + 1}/${orch.stations.length} · pattern ${cmd.index + 1}/${cmd.total}`,
+            `Hold still · ${cmd.stationId} · pattern ${cmd.index + 1}/${cmd.total}`,
           );
         } else if (cmd.type === "calib-done") {
           setLiveStatus("Solving poses and mapping…");
@@ -210,8 +199,11 @@ export function HostPage() {
       const result = await finishLiveMapping(orch.getBundles(), proj);
       const baked = bakeLook(result.mapping, specRef.current ?? lookRef.current);
       setPoseSource(result.poseSource);
-      publish(result.mapping, baked, Number.NaN, false);
-      setLiveStatus(`Mapped with ${result.poseSource} poses.`);
+      setProjectorSource(result.projectorSource);
+      publish(result.mapping, baked, Number.NaN);
+      setLiveStatus(
+        `Mapped with ${result.poseSource} poses · projector ${result.projectorSource}.`,
+      );
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         setLiveStatus("Capture cancelled.");
@@ -230,14 +222,11 @@ export function HostPage() {
     specRef.current = null;
     lookRef.current = next;
     if (!mapping) {
-      void runSim(false, next);
+      setError("Capture the room first. Looks are painted onto a phone photo here; only the pattern goes to the projector.");
       return;
     }
-    const baked = bakeLook(mapping, next);
-    const url = pixelsToPngDataUrl(baked, mapping.projectorWidth, mapping.projectorHeight);
-    setPreview(url);
-    localStorage.setItem("lumen-look", url ?? "");
-    if (url) sessionRef.current?.send({ type: "look-frame", dataUrl: url });
+    setError(null);
+    sendLook(mapping, bakeLook(mapping, next));
   }
 
   async function generateFromPrompt() {
@@ -248,14 +237,10 @@ export function HostPage() {
       setSpec(next);
       setLook("custom");
       if (!mapping) {
-        await runSim(false, next);
+        setError("Capture the room first. The projector never gets the phone photo.");
         return;
       }
-      const baked = bakeLook(mapping, next);
-      const url = pixelsToPngDataUrl(baked, mapping.projectorWidth, mapping.projectorHeight);
-      setPreview(url);
-      localStorage.setItem("lumen-look", url ?? "");
-      if (url) sessionRef.current?.send({ type: "look-frame", dataUrl: url });
+      sendLook(mapping, bakeLook(mapping, next));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -270,21 +255,16 @@ export function HostPage() {
   return (
     <div className="shell">
       <p className="kicker">Lumen · auto projection mapping</p>
-      <h1>Map a room with an iPhone. No projector required to test.</h1>
+      <h1>Project onto real walls and objects. No manual grid warp.</h1>
       <p className="lede">
-        Default path: a virtual projector and three simulated phone stations. Same Gray-code
-        capture, triangulation, surface fit, and look bake you will run on hardware. The iPhone is
-        handheld — walk the stations the app asks for. A new object means run that capture again,
-        not a live camera watch.
+        Photos from an angle still work because we recover the 3D scene: where the
+        projector sits, where the phone sat for each shot, and the surfaces in front
+        of the projector. That is the automatic version of dragging mesh edges.
+        This tab shows a phone photo with the look on it. The projector tab throws
+        only stripes, then the look — never the photo.
       </p>
 
       <div className="row" style={{ marginTop: "1.2rem" }}>
-        <button className="primary" disabled={busy} onClick={() => void runSim(false)}>
-          {busy ? "Working…" : "Run virtual room"}
-        </button>
-        <button disabled={busy} onClick={() => void runSim(true)}>
-          Remap after new object
-        </button>
         <a className="btn" href={projectorUrl} target="_blank" rel="noreferrer">
           Open projector window
         </a>
@@ -330,13 +310,15 @@ export function HostPage() {
           </div>
           <p className="muted" style={{ marginTop: "0.6rem" }}>{liveStatus}</p>
           {poseSource ? <p className="muted">Phone poses · {poseSource}</p> : null}
+          {projectorSource ? <p className="muted">Projector pose · {projectorSource}</p> : null}
         </div>
 
         <div className="card">
-          <h2>HDMI / projector K</h2>
+          <h2>Projector lens / resolution</h2>
           <p className="muted">
-            Fullscreen the projector tab on the second display. Resolution and throw become the
-            known-K prior for PnP. Effective FOV {fov.toFixed(1)}°.
+            Match the real projector: native resolution, throw distance to the wall, height of
+            the projected image on that wall. Those numbers are the known-K prior. Effective FOV{" "}
+            {fov.toFixed(1)}°.
           </p>
           <div style={{ marginTop: "0.6rem" }}>
             <ProjectorSettingsForm value={proj} onChange={updateProjector} />
@@ -344,12 +326,27 @@ export function HostPage() {
         </div>
 
         <div className="card">
-          <h2>Projector look</h2>
-          {preview ? (
-            <img className="preview" src={preview} alt="Baked look on the virtual projector" />
+          <h2>What you see</h2>
+          <p className="muted">
+            Host = phone photo + look overlay. Projector tab = patterns only. A TV showing
+            that tab is just a flat version of the same framebuffer — not a reconstructed room.
+          </p>
+          {testPreview ? (
+            <>
+              <p className="muted" style={{ marginTop: "0.7rem" }}>Test · photo + look</p>
+              <img className="preview" src={testPreview} alt="Phone photo with look overlaid" />
+            </>
           ) : (
-            <p className="muted">Run the room, then pick a library look or type a prompt.</p>
+            <p className="muted" style={{ marginTop: "0.7rem" }}>
+              Capture from the phone first. Then this shows one of those photos with the look on it.
+            </p>
           )}
+          {preview ? (
+            <>
+              <p className="muted" style={{ marginTop: "0.7rem" }}>Projector throw · patterns only</p>
+              <img className="preview" src={preview} alt="Image the projector throws, not a photo of the room" />
+            </>
+          ) : null}
           <div className="row" style={{ marginTop: "0.7rem" }}>
             {LOOKS.map((item) => (
               <button
@@ -395,39 +392,48 @@ export function HostPage() {
           ) : null}
         </div>
         <div className="card">
-          <h2>Calibration</h2>
-          {stats ? (
-            <ul className="steps">
-              <li className="stat">Mapped points · {stats.points}</li>
-              <li className="stat">Surfaces · {stats.surfaces}</li>
-              <li className="stat">Reprojection RMS · {stats.rms.toFixed(2)} px</li>
-              <li className="stat">
-                Projector origin error ·{" "}
-                {Number.isFinite(stats.originError)
-                  ? `${stats.originError.toFixed(3)} m`
-                  : "n/a (live capture)"}
-              </li>
-              <li>
-                {stats.remapped
-                  ? "This pass included a newly placed object (full recapture)."
-                  : "First mapping of the empty-ish room."}
-              </li>
-            </ul>
+          <h2>3D calibration</h2>
+          {mapping && stats ? (
+            <>
+              <SceneSketch
+                mapping={mapping}
+                poseSource={poseSource}
+                projectorSource={projectorSource}
+              />
+              <ul className="steps">
+                <li className="stat">Mapped points · {stats.points}</li>
+                <li className="stat">Surfaces · {stats.surfaces}</li>
+                <li className="stat">
+                  Reprojection RMS · {stats.rms.toFixed(2)} px
+                  {mapping.projector.source === "opencv-pnp" ? " · OpenCV PnP" : ""}
+                </li>
+                <li className="stat">
+                  Projector origin ·{" "}
+                  {Number.isFinite(stats.originError)
+                    ? `error ${stats.originError.toFixed(3)} m (sim)`
+                    : "solved from triangulated stripes"}
+                </li>
+              </ul>
+            </>
           ) : (
             <p className="muted">
-              Three virtual iPhone stops, or a live walk-around. Gray codes decode to projector
-              pixels; dual-view rays triangulate the projector. Depth models are for later live
-              watch, not this pass.
+              Walk at least two angles while Gray-code stripes hit the wall. Same projector
+              pixel seen from two phone poses triangulates a 3D point. OpenCV PnP
+              solves projector pose. DA3 + MoGe measure phone pose and metric scale
+              so the angle of each photo is known — that replaces dragging a grid.
             </p>
           )}
         </div>
         <div className="card">
           <h2>How a real session works</h2>
           <ol className="steps">
-            <li>PC hosts this app. Fullscreen the projector tab on HDMI (or a TV while testing).</li>
-            <li>iPhone opens <code>/phone?room={room}</code> and walks center → left → right → detail.</li>
-            <li>Bake a library look or generate one from a prompt, then project it.</li>
-            <li>Put a new object in the room? Open the phone app and capture the stations again.</li>
+            <li>
+              Plug the projector into the PC (HDMI/DisplayPort). Point it at the wall or objects.
+              Fullscreen the projector tab on that output so the light hits the room.
+            </li>
+            <li>iPhone opens <code>/phone?room={room}</code>. Hold still while stripes flash — pictures are taken automatically. Move only if the phone asks for another angle (because coverage still needs it).</li>
+            <li>Bake a library look or generate one from a prompt. The projector throws that look onto the mapped surfaces.</li>
+            <li>Put a new object in the room? Capture again so it gets mapped too.</li>
           </ol>
         </div>
         <div className="card">
@@ -441,13 +447,20 @@ export function HostPage() {
           </div>
         </div>
         <div className="card">
-          <h2>Models (later, for depth)</h2>
-          <p className="muted">Realtime budget is only if we add always-on watch later.</p>
+          <h2>Models</h2>
+          <p className="muted">
+            DA3 + MoGe are required at capture for phone pose, metric scale, and
+            depth used to fill Gray-code holes. OpenCV PnP solves projector pose.
+            Tiny depth nets are only for a later &quot;new object&quot; watch loop — not for looks.
+          </p>
           <ul className="steps">
             {MODEL_CATALOG.map((m) => (
               <li key={m.id}>
                 <strong>{m.name}</strong>
-                <div className="muted">{m.why}</div>
+                <div className="muted">
+                  {m.role === "live-depth" ? "Later watch · " : "Capture / calibration · "}
+                  {m.why}
+                </div>
               </li>
             ))}
           </ul>

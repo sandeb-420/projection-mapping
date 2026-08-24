@@ -1,11 +1,12 @@
 import type { Vec2, Vec3 } from "../math/vec";
 import type { CorrespondenceMap } from "../decode/structuredLight";
 import { invertCorrespondence } from "../decode/structuredLight";
-import type { Pose } from "../calib/projectorPnp";
-import { ransacProjectorDlt, type ProjectorCalibration } from "../calib/projectorPnp";
+import type { Pose, ProjectorCalibration, ProjectorPoseSource } from "../calib/projectorPnp";
+import { solveProjectorPnpOpenCv } from "../calib/opencvPnp";
 import { originFromPose, triangulateTwoViews } from "../calib/triangulate";
 import { ransacPlanes, type Plane } from "../geometry/planes";
 import type { Mat3 } from "../math/vec";
+import { densifyWithDepth } from "./densifyWithDepth";
 
 export interface ViewCapture {
   id: string;
@@ -46,19 +47,42 @@ export interface Mapping {
 
 const SAMPLE_STRIDE = 3;
 
+interface Triangulated {
+  samples3d: Vec3[];
+  samples2d: Vec2[];
+  worldByProj: Map<number, Vec3>;
+  inv: { view: ViewCapture; inv: ReturnType<typeof invertCorrespondence> }[];
+  grayViews: ViewCapture[];
+}
+
 /**
  * Multi-view structured-light mapping.
  *
- * Phone poses come from DA3 / MoGe (or the simulator). Gray-code maps from
- * two or more stops share projector pixels; those pixels are triangulated
- * into world points; the projector is then solved with DLT/PnP.
+ * Phone poses come from DA3 + MoGe. Gray-code maps from two or more stops
+ * share projector pixels; those pixels are triangulated into world points;
+ * OpenCV PnP solves projector pose. Single-view Gray-code pixels are filled
+ * from depth after pose is known.
  */
-export function buildMapping(
+export async function buildMapping(
   views: ViewCapture[],
   projectorWidth: number,
   projectorHeight: number,
-  projectorK?: Mat3,
-): Mapping {
+  projectorK: Mat3,
+): Promise<Mapping> {
+  const geo = triangulateSharedPixels(views, projectorWidth, projectorHeight);
+  const projector = await solveProjectorPnpOpenCv({
+    K: projectorK,
+    points3d: geo.samples3d,
+    points2d: geo.samples2d,
+  });
+  return finishMapping(views, projectorWidth, projectorHeight, projector, geo);
+}
+
+function triangulateSharedPixels(
+  views: ViewCapture[],
+  projectorWidth: number,
+  projectorHeight: number,
+): Triangulated {
   const grayViews = views.filter((v) => v.map);
   if (grayViews.length < 2) {
     throw new Error("Need Gray-code captures from at least two iPhone positions");
@@ -101,26 +125,57 @@ export function buildMapping(
     );
   }
 
-  const projector = ransacProjectorDlt(samples3d, samples2d, {
-    iterations: 60,
-    threshold: 3,
-    sample: 12,
-    K: projectorK,
-  });
+  return { samples3d, samples2d, worldByProj, inv, grayViews };
+}
 
+function finishMapping(
+  views: ViewCapture[],
+  projectorWidth: number,
+  projectorHeight: number,
+  projector: ProjectorCalibration,
+  geo: Triangulated,
+): Mapping {
   const points: MappedPoint[] = [];
-  for (const [j, world] of worldByProj) {
+  for (const [j, world] of geo.worldByProj) {
     const py = Math.floor(j / projectorWidth);
     const px = j - py * projectorWidth;
+    let camera: Vec2 = [0, 0];
+    let viewId = geo.grayViews[0]!.id;
+    for (const entry of geo.inv) {
+      if ((entry.inv.count[j] ?? 0) < 1) continue;
+      camera = [entry.inv.camX[j]!, entry.inv.camY[j]!];
+      viewId = entry.view.id;
+      break;
+    }
     points.push({
       world,
       projector: [px, py],
-      camera: [0, 0],
-      viewId: grayViews[0]!.id,
+      camera,
+      viewId,
       objectId: 0,
     });
   }
 
+  const densified = densifyWithDepth(
+    views,
+    points,
+    projectorWidth,
+    projectorHeight,
+    SAMPLE_STRIDE,
+  );
+  const surfaces = fitSurfaces(densified);
+
+  return {
+    projector,
+    projectorWidth,
+    projectorHeight,
+    points: densified,
+    surfaces,
+    views,
+  };
+}
+
+function fitSurfaces(points: MappedPoint[]): SurfaceMesh[] {
   const planes = ransacPlanes(
     points.map((p) => p.world),
     { maxPlanes: 4, threshold: 0.03 },
@@ -153,15 +208,7 @@ export function buildMapping(
       plane: null,
     });
   }
-
-  return {
-    projector,
-    projectorWidth,
-    projectorHeight,
-    points,
-    surfaces,
-    views,
-  };
+  return surfaces;
 }
 
 export function mappingStats(mapping: Mapping): {
@@ -169,11 +216,13 @@ export function mappingStats(mapping: Mapping): {
   surfaces: number;
   rms: number;
   projectorOrigin: Vec3;
+  projectorSource: ProjectorPoseSource;
 } {
   return {
     points: mapping.points.length,
     surfaces: mapping.surfaces.length,
     rms: mapping.projector.rms,
     projectorOrigin: originFromPose(mapping.projector.pose),
+    projectorSource: mapping.projector.source,
   };
 }

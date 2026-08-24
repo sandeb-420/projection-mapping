@@ -119,7 +119,7 @@ export function mat3Invert(m: Mat3): Mat3 | null {
 export function lookAt(eye: Vec3, target: Vec3, up: Vec3): { R: Mat3; t: Vec3 } {
   const z = normalize(sub(target, eye));
   const x = normalize(cross(up, z));
-  const y = cross(x, z);
+  const y = cross(z, x);
   const R: Mat3 = [x[0], x[1], x[2], y[0], y[1], y[2], z[0], z[1], z[2]];
   const t = scale(mat3Vec(R, eye), -1);
   return { R, t };

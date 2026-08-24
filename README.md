@@ -1,83 +1,150 @@
 # Lumen — auto projection mapping
 
-Map a room with a handheld iPhone, recover the projector pose from structured light, then project looks onto the recovered surfaces.
+A real projector throws patterns and looks onto **real walls and objects**. This app
+replaces the usual manual grid warp: the projector flashes Gray-code stripes, a
+handheld iPhone photographs those stripes **on the surfaces**, then the software
+builds the map and projects a look onto the same surfaces.
 
-You do **not** need a projector to try this. The default path is a **virtual room + virtual projector + three simulated iPhone stations**.
+HDMI / DisplayPort is only the **cable from the PC to the projector**. The mapping
+target is never a TV.
 
-## Test without a projector
+## How this replaces dragging a grid
+
+Manual mapping: you drag mesh vertices until the projected image sticks to the wall.
+Auto mapping: the software recovers the same 3D facts those drags were encoding.
+
+```
+phone pose A + phone pose B + Gray-code IDs
+        │
+        ▼
+  triangulate 3D points in the room
+        │
+        ▼
+  PnP → projector pose in that same 3D frame
+        │
+        ▼
+  bake look in projector pixels (the automatic warp)
+```
+
+A photo from an angle is fine. The angle is known because we know where the phone
+was. The look is not painted in the photo's pixels; it is painted in **projector**
+pixels, then the projector throws it onto the same 3D points.
+
+We still do **not** stitch a photograph from the projector's camera. We do recover
+**poses + surfaces**. Those are different things.
+
+### Who already solved the pieces
+
+| Piece | Repos / tools |
+| --- | --- |
+| Gray-code projector↔camera + triangulation | [RoomAlive Toolkit](https://github.com/microsoft/RoomAliveToolkit), [SLStudio](https://github.com/jakobwilm/slstudio), [ofxProCamToolkit](https://github.com/kylemcdonald/ofxProCamToolkit), OpenCV `structured_light` + `solvePnP` |
+| Phone pose + depth from the walk-around | [Depth Anything 3](https://github.com/ByteDance-Seed/depth-anything-3) |
+| Metric scale / point map from one photo | [MoGe-2](https://github.com/microsoft/MoGe) |
+| Later live depth (new object) | [ZipDepth](https://zipdepth.github.io/), [DepthART-S](https://xuefeng-cvr.github.io/DepthART/) |
+
+Gray codes answer *which projector pixel hit this camera pixel*. Depth/pose models
+answer *where was the phone, and how big is a meter*. Together they put the
+projector, the phone, and the surfaces in one 3D frame.
+
+## What you actually see
+
+We do **not** reconstruct a photograph from the projector's point of view. We **do**
+recover projector pose, phone poses, and surfaces. Phone photos stay at the phone's
+angles. The look is warped in projector pixels so it lands on those surfaces.
+
+| Place | What is on it |
+| --- | --- |
+| **Host tab (test)** | One of your phone photos with the look painted on top. This is how you check mapping without staring at the wall. |
+| **Projector tab / real projector** | **Only** Gray-code stripes (during capture), then the look. Never the photo. |
+| **A TV showing the projector tab** | The same 2D framebuffer: stripes, then a flat warped painting. It will not look like the room, because a TV is a rectangle — the 3D wall is what makes the look line up. |
+
+## Run it
 
 ```bash
 npm install
-npm test          # Gray-code decode, projector pose, virtual-room mapping, live-path mapping, remap-after-new-object
-npm run dev       # https://localhost:5173  (self-signed cert so a real iPhone camera can work later)
+npm test          # synthetic room is only here, to check the math
+npm run dev       # https://localhost:5173  (self-signed cert so the iPhone camera works)
 ```
 
-1. Open the host page and click **Run virtual room**.
-2. Open **Projector window** — that tab *is* the projector. Later you drag it onto HDMI.
-3. Optional stand-in for a real throw: fullscreen the projector tab on a TV or second monitor and point a phone at it.
+1. Plug the projector into the PC. Point it at the wall / objects. Set native
+   resolution, throw-to-wall, and projected image height on the host.
+2. Open **Projector window** and fullscreen it on the **projector output**. That tab
+   is only what the unit throws into the room (stripes, then the look).
+3. On the iPhone (same Wi‑Fi, HTTPS) open `/phone?room=XXXX`, allow camera,
+   **Enable motion**. Point it at the **projected light on the surfaces**.
+4. On the host click **Start live capture**. Hold still — the system projects
+   each Gray-code pattern and snaps when the phone is steady. It only asks you
+   to move if decoded coverage or baseline still needs another pose.
+5. On the host you should see the **photo + look overlay**. The projector keeps
+   throwing **only the look**. New object? Capture again.
 
-The simulator raycasts a back wall, floor, and box, paints Gray codes as a phone would see them, decodes correspondences, triangulates dual-view projector pixels, solves projector pose, and bakes a look. **Remap after new object** runs that whole capture again with an extra box in the room.
+Default projector resolution prior is 1280×720. Match whatever the unit actually is.
 
-## Live capture (phone + projector tab)
+Phone poses come from the **scene photos** via the sidecar. Both are required:
 
-Same math as the simulator. The host drives Gray-code index over WebSocket / BroadcastChannel; the projector tab paints each stripe; the iPhone captures and uploads JPEGs.
+1. Install [DA3-SMALL](https://github.com/ByteDance-Seed/depth-anything-3) and set `LUMEN_RUN_DA3=1`.
+2. Install [MoGe-2 ViT-S](https://github.com/microsoft/MoGe) and set `LUMEN_RUN_MOGE=1` to metric-scale those poses.
+3. If the sidecar is off or either package is missing, mapping fails. There is no guessed walk-around pose.
 
-1. On the PC, set **HDMI / projector K** (resolution, FOV, optional throw + image height).
-2. **Open projector window**, drag it onto the HDMI/TV display, click **Fullscreen**.
-3. On the iPhone (HTTPS, same room code) open `/phone?room=XXXX`, allow camera, **Enable motion**.
-4. On the host click **Start live capture** and walk center → left → right → closer to objects.
-5. Bake a library look or a one-shot prompt. New object? Walk the stations again.
+Gray-code encode/decode is our implementation of the same algorithm as OpenCV `structured_light` / RoomAlive. We do **not** vendor those C#/Qt apps.
 
-A 640×360 projector resolution is enough for a first TV test; 1280×720 is the default K prior.
-
-Phone poses: the sidecar tries **DA3-SMALL / MoGe-2** when those packages are installed and `LUMEN_RUN_DA3=1` (or `LUMEN_RUN_MOGE=1`). Otherwise the app uses the nominal walk-around layout, optionally yaw-adjusted from DeviceOrientation.
-
-## Sidecar (optional)
+## Sidecar (DA3 / MoGe)
 
 ```bash
 cd server
 pip install -r requirements.txt
-uvicorn app:app --host 127.0.0.1 --port 8787
+# opencv-python-headless is required for projector PnP. Optional, large:
+#   pip install torch
+#   pip install git+https://github.com/ByteDance-Seed/Depth-Anything-3.git
+#   pip install git+https://github.com/microsoft/MoGe.git
+LUMEN_RUN_DA3=1 LUMEN_RUN_MOGE=1 uvicorn app:app --host 127.0.0.1 --port 8787
 ```
 
 Vite proxies `/api` to that process.
 
 | POST | Purpose |
 | --- | --- |
-| `/pose` | DA3-SMALL / MoGe-2 from scene frames. Returns `{ok:false}` so the browser can fall back. |
+| `/pose` | **Calls DA3-SMALL** on scene JPEGs (`K,R,t` + depth). **MoGe-2** scales translations and depth. Both required; `{ok:false}` is a hard error. |
+| `/pnp` | **OpenCV `solvePnPRansac` + LM** for projector pose from triangulated 3D ↔ projector pixels. Required; no in-browser DLT. |
 | `/shader` | Optional one-shot LLM look (`OPENAI_API_KEY`). Merges onto the keyword compiler. Still baked once. |
 | `/depth` | Stub for a later ZipDepth / DepthART watch loop. |
 
-## Real hardware
+## Hardware
 
-- **PC** runs the host + projector window on the HDMI output. Fullscreen the `/projector` tab on that display.
-- **iPhone** opens `/phone` (not mounted on the projector). The UI asks you to walk: front, left, right, then closer to objects.
-- At each Gray-code station the projector flashes stripes; the phone holds still and captures the stack.
-- Looks: pick a **library look** or type a prompt to **generate a custom look once** from the mapping, then project it. Not realtime AI. If the sidecar has an API key, the prompt can also return WGSL that is stored on the spec; the raster bake still uses hue / mode / freq.
-- New object: open the phone app and **walk the stations again**. Always-on camera detection is deferred.
+- **Projector** is the light source. PC drives it as a video output (usually HDMI).
+  Fullscreen `/projector` on that output so stripes and looks land on the room.
+- **iPhone** opens `/phone` (not mounted on the projector). It photographs the
+  projected light on walls and objects. The UI asks you to walk: front, left,
+  right, then closer to objects.
+- Looks: pick a **library look** or type a prompt to **generate a custom look once**
+  from the mapping, then project it. Not realtime AI.
+- New object: **capture again**. Live watch is later.
 
 ## Pipeline
 
 ```
-iPhone walk-around (or virtual cameras)
+iPhone walk-around (hold still; move only if coverage asks)
         │
-        ├─ scene frames → DA3-SMALL / MoGe-2  (pose + metric scale; station layout if sidecar is off)
-        └─ Gray-code stack → camera→projector UV
+        ├─ scene frames → DA3-SMALL + MoGe-2  (pose + metric scale; required)
+        └─ Gray-code stack → camera→projector UV  (snapped automatically while you hold)
                 │
                 ▼
      triangulate projector pixels seen from ≥2 phone poses
                 │
                 ▼
-     DLT / PnP → projector K (from HDMI resolution + throw), R, t
+     OpenCV PnP (sidecar) → projector R, t
+                │
+                ▼
+     densify: one-view Gray-code pixels + DA3/MoGe depth
                 │
                 ▼
      RANSAC planes + leftover object blobs
                 │
                 ▼
-     bake look (library or one-shot prompt) → projector window
+     bake look → projector throws it onto the mapped surfaces
                 │
                 ▼
-     new object → walk the iPhone stations again (live watch later)
+     new object → capture again (live watch later)
 ```
 
 ## Models (from recent public posts, not locked in)
@@ -90,25 +157,25 @@ Realtime budget is for the watch loop only, and that loop is still off.
 | [ZipDepth](https://zipdepth.github.io/) | Live depth (later) | 6.1M, TensorRT ~1ms-class on 30-series. Best Python sidecar candidate. |
 | [DA3-SMALL](https://github.com/ByteDance-Seed/depth-anything-3) | Calib pose | 80M Apache-2.0. Depth + pose from the walk-around. |
 | [MoGe-2 ViT-S](https://github.com/microsoft/MoGe) | Metric scale | Point map + normals + FOV from one photo. |
-| DA-V2 Small ONNX | Browser fallback | transformers.js WebGPU if the sidecar is off. |
+| DA-V2 Small ONNX | Not used | Parked. Pose comes from the DA3/MoGe sidecar, not a browser fallback. |
 
-VGGT / FastVGGT are useful if you want a heavy multi-view reconstruct from a video orbit. Too big for the 25ms loop; fine as an offline calib option later.
-
-Related classical work: [RoomAlive Toolkit](https://github.com/microsoft/RoomAliveToolkit) (Gray-code projector–camera), [SLStudio](https://github.com/jakobwilm/slstudio), [ofxProCamToolkit](https://github.com/kylemcdonald/ofxProCamToolkit).
+Related classical work: [RoomAlive Toolkit](https://github.com/microsoft/RoomAliveToolkit)
+(Gray-code projector–camera), [SLStudio](https://github.com/jakobwilm/slstudio),
+[ofxProCamToolkit](https://github.com/kylemcdonald/ofxProCamToolkit).
 
 ## Layout
 
 - `src/lib/patterns` Gray-code encode
 - `src/lib/decode` structured-light decode
-- `src/lib/calib` DLT projector pose + triangulation
+- `src/lib/calib` OpenCV PnP client, triangulation
 - `src/lib/capture` walk-around stations + host orchestrator
-- `src/lib/pose` station layout, DeviceOrientation, DA3 sidecar
-- `src/lib/projector` HDMI resolution / throw as K prior
+- `src/lib/pose` DA3 + MoGe sidecar client
+- `src/lib/projector` native resolution / throw-to-wall as K prior
 - `src/lib/pipeline` multi-view mapping + object residual (watch unused)
-- `src/lib/sim` virtual room (no hardware)
+- `src/lib/sim` synthetic room used by `npm test` only
 - `src/lib/looks` bake a projector image (keywords + optional LLM)
 - `src/pages` host / phone / projector
-- `server` optional FastAPI sidecar
+- `server` FastAPI sidecar (DA3, MoGe, OpenCV PnP)
 
 ## Notes
 

@@ -50,7 +50,7 @@ export function ProjectorSettingsForm(props: {
         />
       </label>
       <label className="field">
-        Throw m
+        Throw to wall m
         <input
           type="number"
           min={0.2}
@@ -62,7 +62,7 @@ export function ProjectorSettingsForm(props: {
         />
       </label>
       <label className="field">
-        Image h m
+        Image on wall m
         <input
           type="number"
           min={0.2}
