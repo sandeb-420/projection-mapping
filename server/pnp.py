@@ -31,45 +31,54 @@ def solve_projector_pnp(
     distort = np.zeros(5, dtype=np.float64) if not dist else np.asarray(dist, dtype=np.float64)
 
     guess_r, guess_t = _as_rt(r_init, t_init)
-    use_guess = guess_r is not None
-    if use_guess:
-        rvec0, _ = cv2.Rodrigues(guess_r)
-        tvec0 = guess_t
-        flags = cv2.SOLVEPNP_ITERATIVE
-    else:
+    rvec = tvec = inliers = None
+    ok = False
+
+    attempts: list[tuple[int, bool, np.ndarray | None, np.ndarray | None]] = []
+    if guess_r is not None:
+        attempts.append((cv2.SOLVEPNP_ITERATIVE, True, guess_r, guess_t))
+    attempts.extend(
+        [
+            (cv2.SOLVEPNP_EPNP, False, None, None),
+            (cv2.SOLVEPNP_SQPNP, False, None, None),
+            (cv2.SOLVEPNP_ITERATIVE, False, None, None),
+        ]
+    )
+
+    for flags, use_guess, rot0, trans0 in attempts:
         rvec0 = np.zeros((3, 1), dtype=np.float64)
         tvec0 = np.zeros((3, 1), dtype=np.float64)
-        flags = cv2.SOLVEPNP_EPNP
+        if use_guess and rot0 is not None and trans0 is not None:
+            rvec0, _ = cv2.Rodrigues(rot0)
+            tvec0 = trans0
+        try:
+            ok, rvec, tvec, inliers = cv2.solvePnPRansac(
+                objectPoints=obj,
+                imagePoints=img,
+                cameraMatrix=camera,
+                distCoeffs=distort,
+                rvec=rvec0,
+                tvec=tvec0,
+                useExtrinsicGuess=use_guess,
+                iterationsCount=200,
+                reprojectionError=3.0,
+                confidence=0.999,
+                flags=flags,
+            )
+        except cv2.error:
+            ok = False
+            continue
+        if not ok or inliers is None or len(inliers) < 6:
+            ok = False
+            continue
+        rot, _ = cv2.Rodrigues(rvec)
+        trans = tvec.reshape(3)
+        idx = inliers.reshape(-1)
+        cam_z = rot @ obj[idx].T + trans.reshape(3, 1)
+        if float(np.mean(cam_z[2] > 0)) >= 0.5:
+            break
+        ok = False
 
-    ok, rvec, tvec, inliers = cv2.solvePnPRansac(
-        obj,
-        img,
-        camera,
-        distort,
-        rvec0,
-        tvec0,
-        use_guess,
-        200,
-        3.0,
-        0.999,
-        None,
-        flags,
-    )
-    if (not ok or inliers is None or len(inliers) < 6) and flags != cv2.SOLVEPNP_EPNP:
-        ok, rvec, tvec, inliers = cv2.solvePnPRansac(
-            obj,
-            img,
-            camera,
-            distort,
-            np.zeros((3, 1), dtype=np.float64),
-            np.zeros((3, 1), dtype=np.float64),
-            False,
-            200,
-            3.0,
-            0.999,
-            None,
-            cv2.SOLVEPNP_EPNP,
-        )
     if not ok or inliers is None or len(inliers) < 6:
         return {"ok": False, "reason": "pnp-failed"}
 

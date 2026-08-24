@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { kFromFov, lookAt, project, type Vec3 } from "../math/vec";
+import { kFromFov, lookAt, mat3Det, project, type Vec3 } from "../math/vec";
 import { originFromPose } from "../calib/triangulate";
 import { length, sub } from "../math/vec";
 import { solveProjectorPnpViaPython } from "../test/stubSidecar";
@@ -11,6 +11,7 @@ describe("OpenCV projector PnP", () => {
     const K = kFromFov(width, height, 24);
     const eye: Vec3 = [0.1, 1.2, 0.2];
     const pose = lookAt(eye, [0, 1.0, 3.2], [0, 1, 0]);
+    expect(mat3Det(pose.R)).toBeGreaterThan(0.99);
     const points3d: Vec3[] = [];
     const points2d: Array<readonly [number, number]> = [];
     for (let z = 2.6; z <= 3.4; z += 0.2) {
