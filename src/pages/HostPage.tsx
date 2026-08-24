@@ -43,6 +43,7 @@ export function HostPage() {
     "Idle — plug in the projector, fullscreen its tab, then open the phone on the room.",
   );
   const [poseSource, setPoseSource] = useState<string | null>(null);
+  const [projectorSource, setProjectorSource] = useState<string | null>(null);
   const [proj, setProj] = useState<ProjectorSettings>(() => loadProjectorSettings());
   const [peers, setPeers] = useState<Record<Role, boolean>>({
     host: true,
@@ -198,8 +199,11 @@ export function HostPage() {
       const result = await finishLiveMapping(orch.getBundles(), proj);
       const baked = bakeLook(result.mapping, specRef.current ?? lookRef.current);
       setPoseSource(result.poseSource);
+      setProjectorSource(result.projectorSource);
       publish(result.mapping, baked, Number.NaN);
-      setLiveStatus(`Mapped with ${result.poseSource} poses.`);
+      setLiveStatus(
+        `Mapped with ${result.poseSource} poses · projector ${result.projectorSource}.`,
+      );
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         setLiveStatus("Capture cancelled.");
@@ -306,6 +310,7 @@ export function HostPage() {
           </div>
           <p className="muted" style={{ marginTop: "0.6rem" }}>{liveStatus}</p>
           {poseSource ? <p className="muted">Phone poses · {poseSource}</p> : null}
+          {projectorSource ? <p className="muted">Projector pose · {projectorSource}</p> : null}
         </div>
 
         <div className="card">
@@ -390,11 +395,18 @@ export function HostPage() {
           <h2>3D calibration</h2>
           {mapping && stats ? (
             <>
-              <SceneSketch mapping={mapping} poseSource={poseSource} />
+              <SceneSketch
+                mapping={mapping}
+                poseSource={poseSource}
+                projectorSource={projectorSource}
+              />
               <ul className="steps">
                 <li className="stat">Mapped points · {stats.points}</li>
                 <li className="stat">Surfaces · {stats.surfaces}</li>
-                <li className="stat">Reprojection RMS · {stats.rms.toFixed(2)} px</li>
+                <li className="stat">
+                  Reprojection RMS · {stats.rms.toFixed(2)} px
+                  {mapping.projector.source === "opencv-pnp" ? " · OpenCV PnP" : " · DLT"}
+                </li>
                 <li className="stat">
                   Projector origin ·{" "}
                   {Number.isFinite(stats.originError)
@@ -437,7 +449,8 @@ export function HostPage() {
         <div className="card">
           <h2>Models</h2>
           <p className="muted">
-            DA3 / MoGe run at capture to get phone pose and metric scale. Tiny depth
+            DA3 / MoGe run at capture for phone pose, metric scale, and depth used
+            to fill Gray-code holes. OpenCV PnP solves projector pose. Tiny depth
             nets are only for a later &quot;new object&quot; watch loop — not for looks.
           </p>
           <ul className="steps">

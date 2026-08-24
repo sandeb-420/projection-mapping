@@ -17,6 +17,7 @@ export interface PoseHint {
 
 export interface ResolvedPose extends LabeledPose {
   source: PoseSource;
+  depth?: Float32Array;
 }
 
 interface SidecarView {
@@ -24,6 +25,9 @@ interface SidecarView {
   R: number[] | number[][];
   t: number[];
   K: number[] | number[][];
+  depthB64?: string;
+  depthWidth?: number;
+  depthHeight?: number;
 }
 
 interface SidecarBody {
@@ -91,12 +95,15 @@ async function tryPoseSidecar(hints: PoseHint[]): Promise<ResolvedPose[] | null>
       const R = asMat3(view.R);
       const t = asVec3(view.t);
       const K = asMat3(view.K);
+      const dw = view.depthWidth ?? hints[i]?.width ?? 0;
+      const dh = view.depthHeight ?? hints[i]?.height ?? 0;
       return {
         id: view.id ?? hints[i]?.id ?? `view-${i}`,
         K,
         pose: { R, t },
         eye: cameraFromRt(R, t),
         source,
+        depth: decodeFloat32B64(view.depthB64, dw * dh),
       };
     });
   } catch {
@@ -123,4 +130,17 @@ function flatten(value: number[] | number[][]): number[] {
   if (value.length === 0) return [];
   if (Array.isArray(value[0])) return (value as number[][]).flat();
   return value as number[];
+}
+
+export function decodeFloat32B64(b64: string | undefined, count: number): Float32Array | undefined {
+  if (!b64 || count < 1) return undefined;
+  try {
+    const binary = atob(b64);
+    if (binary.length !== count * 4) return undefined;
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new Float32Array(bytes.buffer, bytes.byteOffset, count);
+  } catch {
+    return undefined;
+  }
 }

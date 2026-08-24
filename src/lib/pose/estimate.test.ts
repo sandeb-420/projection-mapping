@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resolvePhonePoses } from "./estimate";
+import { decodeFloat32B64, resolvePhonePoses } from "./estimate";
 import { originFromPose } from "../calib/triangulate";
 
 afterEach(() => {
@@ -71,5 +71,41 @@ describe("resolvePhonePoses", () => {
     );
     expect(poses[0]!.source).toBe("da3+moge");
     expect(poses[0]!.pose.t[2]).toBe(1.2);
+  });
+
+  it("attaches DA3 depth when the sidecar sends a float32 buffer", async () => {
+    const depth = new Float32Array([1.25, 2.5, 3.75, 4]);
+    const b64 = btoa(String.fromCharCode(...new Uint8Array(depth.buffer)));
+    vi.stubGlobal("fetch", async () => ({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        source: "da3",
+        views: [
+          {
+            id: "center",
+            R: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+            t: [0, 0, 0],
+            K: [100, 0, 80, 0, 100, 45, 0, 0, 1],
+            depthB64: b64,
+            depthWidth: 2,
+            depthHeight: 2,
+          },
+        ],
+      }),
+    }));
+    const poses = await resolvePhonePoses(
+      [{ id: "center", width: 160, height: 90 }],
+      62,
+    );
+    expect(Array.from(poses[0]!.depth ?? [])).toEqual([1.25, 2.5, 3.75, 4]);
+  });
+});
+
+describe("decodeFloat32B64", () => {
+  it("round-trips a float32 buffer", () => {
+    const src = new Float32Array([1.5, 2.25, 3]);
+    const b64 = btoa(String.fromCharCode(...new Uint8Array(src.buffer)));
+    expect(Array.from(decodeFloat32B64(b64, 3) ?? [])).toEqual([1.5, 2.25, 3]);
   });
 });

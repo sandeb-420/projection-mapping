@@ -17,11 +17,14 @@ export interface Pose {
   t: Vec3;
 }
 
+export type ProjectorPoseSource = "opencv-pnp" | "dlt";
+
 export interface ProjectorCalibration {
   K: Mat3;
   pose: Pose;
   rms: number;
   inliers: number;
+  source: ProjectorPoseSource;
 }
 
 function givens(a: number, b: number): { c: number; s: number } {
@@ -260,7 +263,7 @@ export function calibrateProjectorDlt(
   const P = enforceCheirality(denormalizeP(Pnorm, n2.T, n3.T), points3d);
   const { K, pose } = decomposeP(P);
   const rms = rmsError(P, points3d, points2d);
-  return { K, pose, rms, inliers: points3d.length };
+  return { K, pose, rms, inliers: points3d.length, source: "dlt" };
 }
 
 /**
@@ -315,7 +318,13 @@ export function calibrateProjectorKnownK(
   }
   const pose = { R, t };
   const pix = pixelP(K, P);
-  return { K, pose, rms: rmsError(pix, points3d, points2d), inliers: points3d.length };
+  return {
+    K,
+    pose,
+    rms: rmsError(pix, points3d, points2d),
+    inliers: points3d.length,
+    source: "dlt",
+  };
 }
 
 export function ransacProjectorDlt(
@@ -367,7 +376,7 @@ export function ransacProjectorDlt(
     bestInliers.map((i) => points3d[i]!),
     bestInliers.map((i) => points2d[i]!),
   );
-  return { ...refined, inliers: bestInliers.length };
+  return { ...refined, inliers: bestInliers.length, source: "dlt" };
 }
 
 function packP(cal: ProjectorCalibration): Float64Array {

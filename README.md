@@ -92,7 +92,7 @@ Gray-code encode/decode is our implementation of the same algorithm as OpenCV `s
 ```bash
 cd server
 pip install -r requirements.txt
-# Optional, large:
+# opencv-python-headless is required for projector PnP. Optional, large:
 #   pip install torch
 #   pip install git+https://github.com/ByteDance-Seed/Depth-Anything-3.git
 #   pip install git+https://github.com/microsoft/MoGe.git
@@ -103,7 +103,8 @@ Vite proxies `/api` to that process.
 
 | POST | Purpose |
 | --- | --- |
-| `/pose` | **Calls DA3-SMALL** on scene JPEGs (`K,R,t`). Optional MoGe-2 scales translations. `{ok:false}` → browser station-layout fallback. |
+| `/pose` | **Calls DA3-SMALL** on scene JPEGs (`K,R,t` + depth). Optional MoGe-2 scales translations and depth. `{ok:false}` → browser station-layout fallback. |
+| `/pnp` | **OpenCV `solvePnPRansac` + LM** for projector pose from triangulated 3D ↔ projector pixels. Browser DLT is the fallback. |
 | `/shader` | Optional one-shot LLM look (`OPENAI_API_KEY`). Merges onto the keyword compiler. Still baked once. |
 | `/depth` | Stub for a later ZipDepth / DepthART watch loop. |
 
@@ -130,7 +131,10 @@ iPhone walk-around
      triangulate projector pixels seen from ≥2 phone poses
                 │
                 ▼
-     DLT / PnP → projector K (native resolution + throw to wall), R, t
+     OpenCV PnP (sidecar) or DLT → projector K, R, t
+                │
+                ▼
+     densify: one-view Gray-code pixels + DA3/MoGe depth
                 │
                 ▼
      RANSAC planes + leftover object blobs
@@ -162,7 +166,7 @@ Related classical work: [RoomAlive Toolkit](https://github.com/microsoft/RoomAli
 
 - `src/lib/patterns` Gray-code encode
 - `src/lib/decode` structured-light decode
-- `src/lib/calib` DLT projector pose + triangulation
+- `src/lib/calib` DLT projector pose, OpenCV PnP client, triangulation
 - `src/lib/capture` walk-around stations + host orchestrator
 - `src/lib/pose` station layout, DeviceOrientation, DA3 sidecar
 - `src/lib/projector` native resolution / throw-to-wall as K prior

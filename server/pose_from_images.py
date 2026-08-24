@@ -73,6 +73,20 @@ def rt_from_extrinsic(ext: np.ndarray) -> tuple[list[float], list[float]]:
     return rot.reshape(9).tolist(), trans.reshape(3).tolist()
 
 
+def resize_depth(depth: np.ndarray, out_w: int, out_h: int) -> np.ndarray:
+    src = np.asarray(depth, dtype=np.float32)
+    if src.ndim != 2:
+        raise ValueError("depth must be HxW")
+    ys = np.linspace(0, src.shape[0] - 1, out_h).astype(np.int32)
+    xs = np.linspace(0, src.shape[1] - 1, out_w).astype(np.int32)
+    return np.ascontiguousarray(src[ys][:, xs])
+
+
+def depth_to_b64(depth: np.ndarray) -> str:
+    f32 = np.ascontiguousarray(depth.astype(np.float32))
+    return base64.b64encode(f32.tobytes()).decode("ascii")
+
+
 def views_from_da3_prediction(
     prediction: Any,
     ids: list[str],
@@ -91,7 +105,21 @@ def views_from_da3_prediction(
         rot, trans = rt_from_extrinsic(exts[i])
         orig_w, orig_h = orig_sizes[i]
         k = scale_intrinsics(ixts[i], proc_w, proc_h, orig_w, orig_h)
-        out.append({"id": view_id, "R": rot, "t": trans, "K": k.reshape(9).tolist()})
+        item: dict[str, Any] = {
+            "id": view_id,
+            "R": rot,
+            "t": trans,
+            "K": k.reshape(9).tolist(),
+        }
+        raw_depth = getattr(prediction, "depth", None)
+        if raw_depth is not None:
+            plane = np.asarray(raw_depth[i], dtype=np.float32)
+            if plane.ndim == 2:
+                resized = resize_depth(plane, orig_w, orig_h)
+                item["depthB64"] = depth_to_b64(resized)
+                item["depthWidth"] = orig_w
+                item["depthHeight"] = orig_h
+        out.append(item)
     return out
 
 
@@ -101,7 +129,12 @@ def apply_metric_scale(views: list[dict[str, Any]], scale: float) -> list[dict[s
     scaled: list[dict[str, Any]] = []
     for view in views:
         trans = [float(c) * scale for c in view["t"]]
-        scaled.append({**view, "t": trans, "metricScale": scale})
+        next_view: dict[str, Any] = {**view, "t": trans, "metricScale": scale}
+        if isinstance(view.get("depthB64"), str):
+            raw = np.frombuffer(base64.b64decode(view["depthB64"]), dtype=np.float32).copy()
+            raw *= np.float32(scale)
+            next_view["depthB64"] = depth_to_b64(raw)
+        scaled.append(next_view)
     return scaled
 
 

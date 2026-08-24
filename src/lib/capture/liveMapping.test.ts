@@ -48,6 +48,7 @@ describe("finishLiveMapping", () => {
       fovY: 24,
     });
     expect(result.poseSource).toBe("station-layout");
+    expect(result.projectorSource).toBe("dlt");
     expect(result.mapping.points.length).toBeGreaterThan(20);
     expect(result.mapping.projector.rms).toBeLessThan(12);
   });

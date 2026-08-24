@@ -4,8 +4,9 @@ import { fitSceneTopDown } from "../lib/calib/sceneSketch";
 export function SceneSketch(props: {
   mapping: Mapping;
   poseSource: string | null;
+  projectorSource?: string | null;
 }) {
-  const { mapping, poseSource } = props;
+  const { mapping, poseSource, projectorSource } = props;
   const sketch = fitSceneTopDown(mapping, 320, 180);
   const assumed = poseSource === "station-layout";
 
@@ -55,6 +56,11 @@ export function SceneSketch(props: {
           ? " Phone poses are the assumed walk (center/left/right) until DA3/MoGe is on. Projector pose is still solved from the stripes."
           : poseSource
             ? ` Phone poses from ${poseSource}.`
+            : ""}
+        {projectorSource === "opencv-pnp"
+          ? " Projector pose from OpenCV PnP."
+          : projectorSource === "dlt"
+            ? " Projector pose from in-browser DLT."
             : ""}
       </p>
     </div>

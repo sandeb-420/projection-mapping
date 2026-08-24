@@ -3,8 +3,9 @@ uvicorn>=0.27
 pydantic>=2
 numpy>=1.26
 pillow>=10
+opencv-python-headless>=4.9
 
-# Optional pose backends (not installed by default — large torch + checkpoints):
+# opencv-python-headless is required for projector PnP. Torch / DA3 / MoGe stay optional.
 #   pip install torch
 #   pip install git+https://github.com/ByteDance-Seed/Depth-Anything-3.git
 #   pip install git+https://github.com/microsoft/MoGe.git

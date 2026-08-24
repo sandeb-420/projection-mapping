@@ -19,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from pose_from_images import last_error, pose_views_from_request
+from pnp import solve_projector_pnp
 
 app = FastAPI(title="Lumen sidecar")
 app.add_middleware(
@@ -45,6 +46,7 @@ def health() -> dict[str, Any]:
         "status": "ok",
         "da3": _module_present("depth_anything_3"),
         "moge": _module_present("moge"),
+        "opencv": _module_present("cv2"),
         "llm": bool(os.environ.get("OPENAI_API_KEY")),
         "da3Enabled": os.environ.get("LUMEN_RUN_DA3") == "1",
         "mogeEnabled": os.environ.get("LUMEN_RUN_MOGE") == "1",
@@ -77,6 +79,27 @@ def pose(body: dict[str, Any]) -> dict[str, Any]:
         "moge_installed": _module_present("moge"),
         "error": last_error(),
     }
+
+
+@app.post("/pnp")
+def pnp(body: dict[str, Any]) -> dict[str, Any]:
+    """OpenCV solvePnPRansac + LM refine for projector pose."""
+    k = body.get("K") if isinstance(body, dict) else None
+    pts3 = body.get("points3d") if isinstance(body, dict) else None
+    pts2 = body.get("points2d") if isinstance(body, dict) else None
+    dist = body.get("dist") if isinstance(body, dict) else None
+    r_init = body.get("R") if isinstance(body, dict) else None
+    t_init = body.get("t") if isinstance(body, dict) else None
+    if not isinstance(k, list) or not isinstance(pts3, list) or not isinstance(pts2, list):
+        return {"ok": False, "reason": "bad-body"}
+    return solve_projector_pnp(
+        k,
+        pts3,
+        pts2,
+        dist if isinstance(dist, list) else None,
+        r_init if isinstance(r_init, list) else None,
+        t_init if isinstance(t_init, list) else None,
+    )
 
 
 @app.post("/shader")
