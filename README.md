@@ -8,11 +8,49 @@ builds the map and projects a look onto the same surfaces.
 HDMI / DisplayPort is only the **cable from the PC to the projector**. The mapping
 target is never a TV.
 
+## How this replaces dragging a grid
+
+Manual mapping: you drag mesh vertices until the projected image sticks to the wall.
+Auto mapping: the software recovers the same 3D facts those drags were encoding.
+
+```
+phone pose A + phone pose B + Gray-code IDs
+        │
+        ▼
+  triangulate 3D points in the room
+        │
+        ▼
+  PnP → projector pose in that same 3D frame
+        │
+        ▼
+  bake look in projector pixels (the automatic warp)
+```
+
+A photo from an angle is fine. The angle is known because we know where the phone
+was. The look is not painted in the photo's pixels; it is painted in **projector**
+pixels, then the projector throws it onto the same 3D points.
+
+We still do **not** stitch a photograph from the projector's camera. We do recover
+**poses + surfaces**. Those are different things.
+
+### Who already solved the pieces
+
+| Piece | Repos / tools |
+| --- | --- |
+| Gray-code projector↔camera + triangulation | [RoomAlive Toolkit](https://github.com/microsoft/RoomAliveToolkit), [SLStudio](https://github.com/jakobwilm/slstudio), [ofxProCamToolkit](https://github.com/kylemcdonald/ofxProCamToolkit), OpenCV `structured_light` + `solvePnP` |
+| Phone pose + depth from the walk-around | [Depth Anything 3](https://github.com/ByteDance-Seed/depth-anything-3) |
+| Metric scale / point map from one photo | [MoGe-2](https://github.com/microsoft/MoGe) |
+| Later live depth (new object) | [ZipDepth](https://zipdepth.github.io/), [DepthART-S](https://xuefeng-cvr.github.io/DepthART/) |
+
+Gray codes answer *which projector pixel hit this camera pixel*. Depth/pose models
+answer *where was the phone, and how big is a meter*. Together they put the
+projector, the phone, and the surfaces in one 3D frame.
+
 ## What you actually see
 
-We do **not** reconstruct a photograph from the projector's point of view. Phone
-photos are from the phone's angles. The map is only: *this projector pixel hit
-that 3D surface*.
+We do **not** reconstruct a photograph from the projector's point of view. We **do**
+recover projector pose, phone poses, and surfaces. Phone photos stay at the phone's
+angles. The look is warped in projector pixels so it lands on those surfaces.
 
 | Place | What is on it |
 | --- | --- |

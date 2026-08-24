@@ -27,6 +27,7 @@ import {
   type FrameMessage,
 } from "../session/protocol";
 import { ProjectorSettingsForm } from "./ProjectorSettingsForm";
+import { SceneSketch } from "./SceneSketch";
 
 export function HostPage() {
   const room = useMemo(() => getOrCreateRoomCode(), []);
@@ -252,10 +253,11 @@ export function HostPage() {
       <p className="kicker">Lumen · auto projection mapping</p>
       <h1>Project onto real walls and objects. No manual grid warp.</h1>
       <p className="lede">
-        Take photos of the projected stripes on the room. This tab shows your photo with the
-        look painted on it — that is the test view. The other tab is the projector: it only
-        throws stripes, then the look. Never the photo. We do not rebuild a picture from the
-        projector&apos;s eye; we only learn which projector pixel hits which surface.
+        Photos from an angle still work because we recover the 3D scene: where the
+        projector sits, where the phone sat for each shot, and the surfaces in front
+        of the projector. That is the automatic version of dragging mesh edges.
+        This tab shows a phone photo with the look on it. The projector tab throws
+        only stripes, then the look — never the photo.
       </p>
 
       <div className="row" style={{ marginTop: "1.2rem" }}>
@@ -385,24 +387,28 @@ export function HostPage() {
           ) : null}
         </div>
         <div className="card">
-          <h2>Calibration</h2>
-          {stats ? (
-            <ul className="steps">
-              <li className="stat">Mapped points · {stats.points}</li>
-              <li className="stat">Surfaces · {stats.surfaces}</li>
-              <li className="stat">Reprojection RMS · {stats.rms.toFixed(2)} px</li>
-              <li className="stat">
-                Projector origin error ·{" "}
-                {Number.isFinite(stats.originError)
-                  ? `${stats.originError.toFixed(3)} m`
-                  : "n/a (live capture)"}
-              </li>
-            </ul>
+          <h2>3D calibration</h2>
+          {mapping && stats ? (
+            <>
+              <SceneSketch mapping={mapping} poseSource={poseSource} />
+              <ul className="steps">
+                <li className="stat">Mapped points · {stats.points}</li>
+                <li className="stat">Surfaces · {stats.surfaces}</li>
+                <li className="stat">Reprojection RMS · {stats.rms.toFixed(2)} px</li>
+                <li className="stat">
+                  Projector origin ·{" "}
+                  {Number.isFinite(stats.originError)
+                    ? `error ${stats.originError.toFixed(3)} m (sim)`
+                    : "solved from triangulated stripes"}
+                </li>
+              </ul>
+            </>
           ) : (
             <p className="muted">
-              Walk the iPhone stations while stripes hit the wall. Gray codes tell us which
-              projector pixel landed where. We never rebuild a photo from the projector&apos;s
-              viewpoint.
+              Walk at least two angles while Gray-code stripes hit the wall. Same projector
+              pixel seen from two phone poses triangulates a 3D point. Those points solve
+              projector pose (PnP). Depth models (DA3 / MoGe) measure phone pose and scale
+              so the angle of each photo is known — that replaces dragging a grid.
             </p>
           )}
         </div>
@@ -429,13 +435,19 @@ export function HostPage() {
           </div>
         </div>
         <div className="card">
-          <h2>Models (later, for depth)</h2>
-          <p className="muted">Realtime budget is only if we add always-on watch later.</p>
+          <h2>Models</h2>
+          <p className="muted">
+            DA3 / MoGe run at capture to get phone pose and metric scale. Tiny depth
+            nets are only for a later &quot;new object&quot; watch loop — not for looks.
+          </p>
           <ul className="steps">
             {MODEL_CATALOG.map((m) => (
               <li key={m.id}>
                 <strong>{m.name}</strong>
-                <div className="muted">{m.why}</div>
+                <div className="muted">
+                  {m.role === "live-depth" ? "Later watch · " : "Capture / calibration · "}
+                  {m.why}
+                </div>
               </li>
             ))}
           </ul>
