@@ -271,6 +271,9 @@ export function HostPage() {
         <a className="btn" href={`/phone?room=${room}`}>
           Phone capture
         </a>
+        <a className="btn" href="/lab">
+          Virtual lab
+        </a>
       </div>
 
       {error ? <p className="muted" style={{ color: "var(--danger)" }}>{error}</p> : null}

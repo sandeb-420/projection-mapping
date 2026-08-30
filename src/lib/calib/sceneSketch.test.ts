@@ -13,9 +13,17 @@ describe("fitSceneTopDown", () => {
   it("places the projector and phones at distinct recovered positions", async () => {
     stubDa3MogeAndOpenCv([]);
     const result = await runSimulatedCalibration(createDemoRoom());
-    const sketch = fitSceneTopDown(result.mapping, 320, 180);
+    const sketch = fitSceneTopDown(result.mapping, 320, 180, 18, {
+      projector: result.room.projector.eye,
+      phones: result.room.phones.map((phone) => ({
+        id: phone.id,
+        world: originFromPose(phone.pose),
+      })),
+    });
     expect(sketch.projector).not.toBeNull();
+    expect(sketch.gtProjector).not.toBeNull();
     expect(sketch.phones.length).toBeGreaterThanOrEqual(2);
+    expect(sketch.gtPhones.length).toBe(result.room.phones.length);
 
     const proj = originFromPose(result.mapping.projector.pose);
     const phone = originFromPose(result.mapping.views[0]!.pose);

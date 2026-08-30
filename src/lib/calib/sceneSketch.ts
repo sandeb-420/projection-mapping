@@ -2,7 +2,7 @@ import type { Vec3 } from "../math/vec";
 import type { Mapping } from "../pipeline/mapping";
 import { originFromPose } from "./triangulate";
 
-export type SketchKind = "projector" | "phone" | "point";
+export type SketchKind = "projector" | "phone" | "point" | "gt-projector" | "gt-phone";
 
 export interface SketchMark {
   kind: SketchKind;
@@ -18,6 +18,13 @@ export interface FittedSketch {
   marks: SketchMark[];
   projector: SketchMark | null;
   phones: SketchMark[];
+  gtProjector: SketchMark | null;
+  gtPhones: SketchMark[];
+}
+
+export interface GroundTruthSketch {
+  projector: Vec3;
+  phones: Array<{ id: string; world: Vec3 }>;
 }
 
 /**
@@ -30,12 +37,19 @@ export function fitSceneTopDown(
   width: number,
   height: number,
   pad = 18,
+  groundTruth?: GroundTruthSketch,
 ): FittedSketch {
   const raw: Array<{ kind: SketchKind; id: string; world: Vec3 }> = [
     { kind: "projector", id: "projector", world: originFromPose(mapping.projector.pose) },
   ];
   for (const view of mapping.views) {
     raw.push({ kind: "phone", id: view.id, world: originFromPose(view.pose) });
+  }
+  if (groundTruth) {
+    raw.push({ kind: "gt-projector", id: "gt-projector", world: groundTruth.projector });
+    for (const phone of groundTruth.phones) {
+      raw.push({ kind: "gt-phone", id: `gt-${phone.id}`, world: phone.world });
+    }
   }
   const stride = Math.max(1, Math.floor(mapping.points.length / 90));
   mapping.points.forEach((point, i) => {
@@ -77,5 +91,7 @@ export function fitSceneTopDown(
     marks,
     projector: marks.find((m) => m.kind === "projector") ?? null,
     phones: marks.filter((m) => m.kind === "phone"),
+    gtProjector: marks.find((m) => m.kind === "gt-projector") ?? null,
+    gtPhones: marks.filter((m) => m.kind === "gt-phone"),
   };
 }
