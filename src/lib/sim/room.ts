@@ -131,3 +131,8 @@ export function createDemoRoom(options: RoomOptions = {}): VirtualRoom {
 
   return { quads, projector, phones };
 }
+
+/** Wider doorway view so the lab can show the look stuck on the wall. */
+export function labObserverCamera(): VirtualCamera {
+  return makeCamera("observer", [0.05, 1.45, 0.35], [0, 0.95, 3.2], 240, 135, 58);
+}

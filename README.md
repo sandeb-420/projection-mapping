@@ -64,6 +64,7 @@ angles. The look is warped in projector pixels so it lands on those surfaces.
 npm install
 npm test          # synthetic room is only here, to check the math
 npm run dev       # https://localhost:5173  (self-signed cert so the iPhone camera works)
+# Open /lab for a virtual projector + cameras + room (sidecar PnP required)
 ```
 
 1. Plug the projector into the PC. Point it at the wall / objects. Set native
@@ -87,6 +88,15 @@ Phone poses come from the **scene photos** via the sidecar. Both are required:
 3. If the sidecar is off or either package is missing, mapping fails. There is no guessed walk-around pose.
 
 Gray-code encode/decode is our implementation of the same algorithm as OpenCV `structured_light` / RoomAlive. We do **not** vendor those C#/Qt apps.
+
+## Virtual lab (no hardware)
+
+`/lab` runs the same decode → triangulate → OpenCV PnP → bake path against a
+boxy room. Phone poses are ground truth. You can see fake phone photos, the
+projector framebuffer, and the look painted back onto the virtual wall.
+
+This does **not** test iPhone AE, rolling shutter, wallpaper, or DA3/MoGe.
+Start the sidecar for PnP (`opencv-python-headless`; DA3/MoGe flags off is fine).
 
 ## Sidecar (DA3 / MoGe)
 
@@ -174,7 +184,7 @@ Related classical work: [RoomAlive Toolkit](https://github.com/microsoft/RoomAli
 - `src/lib/pipeline` multi-view mapping + object residual (watch unused)
 - `src/lib/sim` synthetic room used by `npm test` only
 - `src/lib/looks` bake a projector image (keywords + optional LLM)
-- `src/pages` host / phone / projector
+- `src/pages` host / phone / projector / lab
 - `server` FastAPI sidecar (DA3, MoGe, OpenCV PnP)
 
 ## Notes

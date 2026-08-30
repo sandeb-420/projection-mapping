@@ -148,6 +148,37 @@ export function paintPattern(
   return pixels;
 }
 
+/** Paint a baked projector look back onto a virtual camera view. */
+export function paintLookOnTrace(
+  trace: ViewTrace,
+  baked: Uint8ClampedArray,
+  projectorWidth: number,
+  projectorHeight: number,
+): Uint8ClampedArray {
+  const { width, height } = trace.camera;
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  for (let i = 0; i < trace.hits.length; i++) {
+    const hit = trace.hits[i];
+    const o = i * 4;
+    pixels[o + 3] = 255;
+    if (!hit) continue;
+    if (!hit.projectorUv) {
+      const dim = 0.22;
+      pixels[o] = Math.min(255, hit.albedo[0] * 255 * dim);
+      pixels[o + 1] = Math.min(255, hit.albedo[1] * 255 * dim);
+      pixels[o + 2] = Math.min(255, hit.albedo[2] * 255 * dim);
+      continue;
+    }
+    const px = Math.min(projectorWidth - 1, Math.max(0, Math.round(hit.projectorUv[0])));
+    const py = Math.min(projectorHeight - 1, Math.max(0, Math.round(hit.projectorUv[1])));
+    const ji = (py * projectorWidth + px) * 4;
+    pixels[o] = baked[ji] ?? 0;
+    pixels[o + 1] = baked[ji + 1] ?? 0;
+    pixels[o + 2] = baked[ji + 2] ?? 0;
+  }
+  return pixels;
+}
+
 export function depthFromTrace(trace: ViewTrace): Float32Array {
   const depth = new Float32Array(trace.hits.length);
   for (let i = 0; i < trace.hits.length; i++) {
